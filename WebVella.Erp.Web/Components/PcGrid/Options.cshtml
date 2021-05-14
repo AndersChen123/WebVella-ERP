@@ -1,14 +1,17 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Api.Models;
+@using WebVella.TagHelpers.Models;
 @using WebVella.Erp.Web;
 @{
 	var options = (PcGrid.PcGridOptions)ViewBag.Options;
 	var erpRequest = (ErpRequestContext)ViewBag.RequestContext;
-	var cssBreakpoints = (List<SelectOption>)ViewBag.CssBreakpointOptions;
-	var verticalAlignmentOptions = (List<SelectOption>)ViewBag.VerticalAlignmentOptions;
-	var horizontalAlignmentOptions = (List<SelectOption>)ViewBag.HorizontalAlignmentOptions;
+	var cssBreakpoints = (List<WvSelectOption>)ViewBag.CssBreakpointOptions;
+	var verticalAlignmentOptions = (List<WvSelectOption>)ViewBag.VerticalAlignmentOptions;
+	var horizontalAlignmentOptions = (List<WvSelectOption>)ViewBag.HorizontalAlignmentOptions;
 }
 
 <wv-row>

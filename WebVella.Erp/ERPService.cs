@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using WebVella.Erp.Api.Models;
-using WebVella.Erp.Api;
 using System.Linq;
-using WebVella.Erp.Database;
-using WebVella.Erp.Jobs;
-using WebVella.Erp.Hooks;
+using WebVella.Erp.Api;
+using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
+using WebVella.Erp.Database;
+using WebVella.Erp.Hooks;
+using WebVella.Erp.Jobs;
 
 namespace WebVella.Erp
 {
@@ -20,7 +20,7 @@ namespace WebVella.Erp
 			FieldResponse fieldResponse = null;
 			EntityManager entMan = new EntityManager();
 			EntityRelationManager rm = new EntityRelationManager();
-			RecordManager recMan = new RecordManager(true);
+			RecordManager recMan = new RecordManager(null, true);
 
 			using (var connection = DbContext.Current.CreateConnection())
 			{
@@ -81,7 +81,7 @@ namespace WebVella.Erp
 							userEntity.RecordPermissions.CanRead.Add(SystemIds.AdministratorRoleId);
 							userEntity.RecordPermissions.CanUpdate.Add(SystemIds.AdministratorRoleId);
 							userEntity.RecordPermissions.CanDelete.Add(SystemIds.AdministratorRoleId);
-							var response = entMan.CreateEntity(userEntity, systemItemIdDictionary );
+							var response = entMan.CreateEntity(userEntity, systemItemIdDictionary);
 
 							#region <--- created_on --->
 							{
@@ -346,7 +346,7 @@ namespace WebVella.Erp
 						{
 							var systemItemIdDictionary = new Dictionary<string, Guid>();
 							systemItemIdDictionary["id"] = new Guid("0c5679f4-a290-4923-ad2b-d304cbc79937");
-							
+
 							InputEntity roleEntity = new InputEntity();
 							roleEntity.Id = SystemIds.RoleEntityId;
 							roleEntity.Name = "role";
@@ -451,7 +451,7 @@ namespace WebVella.Erp
 							user["password"] = Guid.NewGuid().ToString();
 							user["email"] = "system@webvella.com";
 							user["username"] = "system";
-							user["created_on"] = new DateTime( 2010, 10, 10);
+							user["created_on"] = new DateTime(2010, 10, 10);
 							user["enabled"] = true;
 
 							QueryResponse result = recMan.CreateRecord("user", user);
@@ -529,7 +529,7 @@ namespace WebVella.Erp
 						#endregion
 
 						#region << create user_file entity >>
-						{ 
+						{
 
 							#region << ***Create entity*** Entity name: user_file >>
 							{
@@ -537,7 +537,7 @@ namespace WebVella.Erp
 								{
 									var systemFieldIdDictionary = new Dictionary<string, Guid>();
 									systemFieldIdDictionary["id"] = new Guid("14369619-fe7b-423f-bf60-3e7f8b35b840");
-									
+
 									var entity = new InputEntity();
 									entity.Id = new Guid("5c666c54-9e76-4327-ac7a-55851037810c");
 									entity.Name = "user_file";
@@ -862,12 +862,19 @@ namespace WebVella.Erp
 						}
 						#endregion
 					}
-                    if (currentVersion < 2) {
-                        systemSettings.Version = 2;
-                        UpdatePageNodeTable();
-                    }
+					if (currentVersion < 2)
+					{
+						systemSettings.Version = 2;
+						UpdateSitemapNodeTable1();
+					}
 
-					new DbSystemSettingsRepository().Save(new DbSystemSettings { Id = systemSettings.Id, Version = systemSettings.Version });
+					if (currentVersion < 3)
+					{
+						systemSettings.Version = 3;
+						UpdateSitemapNodeTable2();
+					}
+
+					new DbSystemSettingsRepository(DbContext.Current).Save(new DbSystemSettings { Id = systemSettings.Id, Version = systemSettings.Version });
 
 					connection.CommitTransaction();
 				}
@@ -900,7 +907,7 @@ namespace WebVella.Erp
 		{
 			JobManagerSettings settings = new JobManagerSettings();
 			settings.DbConnectionString = ErpSettings.ConnectionString;
-			settings.Enabled = ErpSettings.EnableBackgroungJobs;
+			settings.Enabled = ErpSettings.EnableBackgroundJobs;
 
 			JobManager.Initialize(settings, additionalJobTypes);
 			ScheduleManager.Initialize(settings);
@@ -962,7 +969,7 @@ namespace WebVella.Erp
 					command.ExecuteNonQuery();
 				}
 
-				
+
 				bool systemSearchTableExists = false;
 				command = connection.CreateCommand("SELECT EXISTS (  SELECT 1 FROM   information_schema.tables  WHERE  table_schema = 'public' AND table_name = 'system_search' ) ");
 				using (var reader = command.ExecuteReader())
@@ -1030,7 +1037,7 @@ WITH(oids = false); ";
 					command = connection.CreateCommand(filesTableSql);
 					command.ExecuteNonQuery();
 
-					DbRepository.CreateIndex("idx_filepath", "files", "filepath", true);
+					DbRepository.CreateIndex("idx_filepath", "files", "filepath", null, true);
 				}
 
 				//drop unique constraint for object id - to support FS storage (object id is 0 for all files stored on file system)
@@ -1416,18 +1423,35 @@ CREATE INDEX fki_app_page_data_fkc_page_id ON public.app_page_data_source
 			}
 		}
 
-        private void UpdatePageNodeTable() {
-            using (var connection = DbContext.Current.CreateConnection())
-            {
-                const string updateTable = @"ALTER TABLE public.app_sitemap_area_node 
-                    ADD COLUMN entity_list_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
-                    ADD COLUMN entity_create_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
-                    ADD COLUMN entity_details_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
-                    ADD COLUMN entity_manage_pages uuid[] NOT NULL DEFAULT array[]::uuid[];";
+		private void UpdateSitemapNodeTable1()
+		{
+			using (var connection = DbContext.Current.CreateConnection())
+			{
+				const string updateTable = @"ALTER TABLE public.app_sitemap_area_node 
+                  ADD COLUMN entity_list_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_create_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_details_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_manage_pages uuid[] NOT NULL DEFAULT array[]::uuid[];";
 
-                var command = connection.CreateCommand(updateTable);
-                command.ExecuteNonQuery();
-            }
-        }
+				var command = connection.CreateCommand(updateTable);
+				command.ExecuteNonQuery();
+			}
+		}
+
+		private void UpdateSitemapNodeTable2()
+		{
+			using (var connection = DbContext.Current.CreateConnection())
+			{
+				const string updateTable = @"ALTER TABLE public.app_sitemap_area_node 
+                  ADD COLUMN parent_id uuid DEFAULT NULL;
+
+						ALTER TABLE ONLY public.app_sitemap_area_node
+						ADD CONSTRAINT fkey_app_sitemap_area_node_parent_id
+						FOREIGN KEY (parent_id) REFERENCES app_sitemap_area_node(id);";
+
+				var command = connection.CreateCommand(updateTable);
+				command.ExecuteNonQuery();
+			}
+		}
 	}
 }

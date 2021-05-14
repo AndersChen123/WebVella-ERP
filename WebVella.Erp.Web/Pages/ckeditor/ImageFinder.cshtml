@@ -217,8 +217,8 @@
 
 
     <script>
-		var FilesServerLoad = @Html.Raw(Model.JsonFiles);
-		var CurrentType = 	"@Html.Raw(Model.CurrentType)";
+		var FilesServerLoad = @Html.WvJsonRaw(Model.JsonFiles);
+		var CurrentType = 	"@Html.WvJsonRaw(Model.CurrentType)";
 		var CurrentSort = 	@Html.Raw(Model.CurrentSort);
 		var CurrentPage = 	@Html.Raw(Model.CurrentPage);
 		var CurrentPageSize = 	@Html.Raw(Model.CurrentPageSize);

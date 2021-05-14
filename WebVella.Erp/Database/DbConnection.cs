@@ -17,12 +17,15 @@ namespace WebVella.Erp.Database
 		internal NpgsqlConnection connection;
 		private bool initialTransactionHolder = false;
 
+		private DbContext CurrentContext;
+
 		/// <summary>
 		/// 
 		/// </summary>
 		/// <param name="transaction"></param>
-		internal DbConnection(NpgsqlTransaction transaction)
+		internal DbConnection(NpgsqlTransaction transaction, DbContext suppliedContext)
 		{
+			CurrentContext = suppliedContext;
 			this.transaction = transaction;
 			connection = transaction.Connection;
 		}
@@ -31,8 +34,9 @@ namespace WebVella.Erp.Database
 		/// 
 		/// </summary>
 		/// <param name="connectionString"></param>
-		internal DbConnection(string connectionString)
+		internal DbConnection(string connectionString, DbContext suppliedContext)
 		{
+			CurrentContext = suppliedContext;
 			transaction = null;
 			connection = new NpgsqlConnection(connectionString);
 			connection.Open();
@@ -83,25 +87,25 @@ namespace WebVella.Erp.Database
 
 		public bool AcquireAdvisoryLock(string key)
 		{
-            Int64 hashCode = 0;
-            if (!string.IsNullOrEmpty(key))
-            {
-                //Unicode Encode Covering all characterset
-                byte[] byteContents = Encoding.Unicode.GetBytes(key);
-                System.Security.Cryptography.SHA256 hash =
-                new System.Security.Cryptography.SHA256CryptoServiceProvider();
-                byte[] hashText = hash.ComputeHash(byteContents);
-                //32Byte hashText separate
-                //hashCodeStart = 0~7  8Byte
-                //hashCodeMedium = 8~23  8Byte
-                //hashCodeEnd = 24~31  8Byte
-                //and Fold
-                Int64 hashCodeStart = BitConverter.ToInt64(hashText, 0);
-                Int64 hashCodeMedium = BitConverter.ToInt64(hashText, 8);
-                Int64 hashCodeEnd = BitConverter.ToInt64(hashText, 24);
-                hashCode = hashCodeStart ^ hashCodeMedium ^ hashCodeEnd;
-            }
-            
+			Int64 hashCode = 0;
+			if (!string.IsNullOrEmpty(key))
+			{
+				//Unicode Encode Covering all characterset
+				byte[] byteContents = Encoding.Unicode.GetBytes(key);
+				System.Security.Cryptography.SHA256 hash =
+				new System.Security.Cryptography.SHA256CryptoServiceProvider();
+				byte[] hashText = hash.ComputeHash(byteContents);
+				//32Byte hashText separate
+				//hashCodeStart = 0~7  8Byte
+				//hashCodeMedium = 8~23  8Byte
+				//hashCodeEnd = 24~31  8Byte
+				//and Fold
+				Int64 hashCodeStart = BitConverter.ToInt64(hashText, 0);
+				Int64 hashCodeMedium = BitConverter.ToInt64(hashText, 8);
+				Int64 hashCodeEnd = BitConverter.ToInt64(hashText, 24);
+				hashCode = hashCodeStart ^ hashCodeMedium ^ hashCodeEnd;
+			}
+			
 			return AcquireAdvisoryLock(hashCode);
 		}
 
@@ -114,7 +118,7 @@ namespace WebVella.Erp.Database
 			{
 				initialTransactionHolder = true;
 				transaction = connection.BeginTransaction();
-				DbContext.Current.EnterTransactionalState(transaction);
+				CurrentContext.EnterTransactionalState(transaction);
 			}
 			else
 			{
@@ -138,7 +142,7 @@ namespace WebVella.Erp.Database
 			}
 			else
 			{
-				DbContext.Current.LeaveTransactionalState();
+				CurrentContext.LeaveTransactionalState();
 				if (!initialTransactionHolder)
 				{
 					transaction.Rollback();
@@ -167,7 +171,7 @@ namespace WebVella.Erp.Database
 			else
 			{
 				transaction.Rollback();
-				DbContext.Current.LeaveTransactionalState();
+				CurrentContext.LeaveTransactionalState();
 				transaction = null;
 				if (!initialTransactionHolder)
 					throw new Exception("Trying to rollback transaction started from another connection.The transaction is rolled back, but this exception is thrown to notify.");
@@ -188,7 +192,7 @@ namespace WebVella.Erp.Database
 			if (transactionStack.Count > 0)
 				throw new Exception("Trying to close connection with pending transaction. The transaction is rolled back.");
 
-			DbContext.Current.CloseConnection(this);
+			CurrentContext.CloseConnection(this);
 			if (transaction == null)
 				connection.Close();
 		}

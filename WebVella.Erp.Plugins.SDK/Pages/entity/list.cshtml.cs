@@ -11,6 +11,7 @@ using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
 using WebVella.Erp.Web.Services;
 using System.Web;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 {
@@ -18,7 +19,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 	{
 		public ListModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -35,6 +36,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 		private string ReturnUrlEncoded { get; set; } = "";
 
 		public string PageDescription { get; set; } = "";
+
+        public string SearchString {get;set;} = "";
 
 		public List<string> HeaderActions { get; private set; } = new List<string>();
 
@@ -81,28 +84,34 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			ReturnUrlEncoded = HttpUtility.UrlEncode(PageUtils.GetCurrentUrl(PageContext.HttpContext));
 
 			PageDescription = PageUtils.GenerateListPageDescription(PageContext.HttpContext, "", TotalCount);
+
+            var searchKey = "q_name_v";
+			if (HttpContext.Request.Query.ContainsKey(searchKey) && !String.IsNullOrWhiteSpace(HttpContext.Request.Query[searchKey]))
+			{
+				SearchString = (string)HttpContext.Request.Query[searchKey];
+			}
 			#endregion
 
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Icon",
 					Name = "icon",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Name",
 					Name = "name",
 					Sortable = true,
 					Searchable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "# fields",
 					Name = "fields",
 					Width="80px"
@@ -149,8 +158,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			#region << Actions >>
 			HeaderActions.AddRange(new List<string>() {
-				$"<a href='/sdk/objects/entity/c?returnUrl={ReturnUrlEncoded}' class='btn btn-white btn-sm'><span class='fa fa-plus go-green'></span> Create Entity</a>",
-				$"<button type='button' onclick='ErpEvent.DISPATCH(\"WebVella.Erp.Web.Components.PcDrawer\",\"open\")' class='btn btn-white btn-sm'><span class='fa fa-search'></span> Search</a>"
+				$"<a href='/sdk/objects/entity/c?returnUrl={ReturnUrlEncoded}' class='btn btn-white btn-sm'><span class='fa fa-plus go-green'></span> Create Entity</a>"
 			});
 
 			#endregion

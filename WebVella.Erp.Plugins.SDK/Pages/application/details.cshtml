@@ -1,5 +1,6 @@
 ﻿@page "/sdk/objects/application/r/{RecordId}/{PageName?}"
 @using System.Web;
+@using WebVella.Erp.Web.Utils;
 @model WebVella.Erp.Plugins.SDK.Pages.Application.DetailsModel
 @{
 	Layout = "~/Pages/_AppMaster.cshtml";
@@ -8,7 +9,7 @@
 <wv-page-header color="@Model.App.Color" area-label="Applications" title="@Model.App.Label" subtitle="Details"
 	icon-class="@Model.App.IconClass" return-url="@Model.ReturnUrl">
 	<wv-page-header-actions>
-		<button type="button" onclick='if(confirm("Are you sure?")) { ErpEvent.DISPATCH("WebVella.Erp.Web.Components.PcForm",{htmlId:"DeleteRecord",action:"submit",payload:null})}' class="btn btn-white btn-sm"><i class="fa fa-trash-alt go-red"></i> Delete App</button>
+		<button type="submit" form="DeleteRecord" onclick='function(e){if(!confirm("Are you sure?")) {e.preventDefault();e.stopPropagation()}}' class="btn btn-white btn-sm"><i class="fa fa-trash-alt go-red"></i> Delete App</button>
 		<a href="/sdk/objects/application/m/@(Model.App != null ? Model.App.Id : Guid.Empty)/manage?returnUrl=@(HttpUtility.UrlEncode(Model.CurrentUrl))" class="btn btn-white btn-sm">
 			<i class="fa fa-cog go-orange"></i> Manage
 		</a>
@@ -21,7 +22,7 @@
 	</wv-page-header-toolbar>
 </wv-page-header>
 
-<wv-validation validation="Model.Validation" show-errors="false"></wv-validation>
+<wv-validation errors="@Model.Validation.ToErrorList()" message="@Model.Validation.Message"></wv-validation>
 
 <wv-form label-mode="Stacked" mode="Display" id="RecordDetails">
 	<wv-section class="mt-4">
@@ -35,7 +36,7 @@
 		</wv-row>
 		<wv-row>
 			<wv-column span="6">
-				<wv-field-text label-text="Icon CSS Class" value="@Model.IconClass" name="IconClass"></wv-field-text>
+				<wv-field-icon label-text="Icon CSS Class" value="@Model.IconClass" name="IconClass"></wv-field-icon>
 			</wv-column>
 			<wv-column span="6">
 				<wv-field-color label-text="Color" value="@Model.Color" name="Color"></wv-field-color>
@@ -56,7 +57,7 @@
 		</wv-row>
 		<wv-row>
 			<wv-column>
-				<wv-field-multiselect label-text="Access" value="@Model.Access" name="Access" options="Model.RoleOptions"></wv-field-multiselect>
+				<wv-field-multiselect label-text="Access" value="@Model.Access" name="Access" options="Model.RoleOptions.ToWvSelectOption()"></wv-field-multiselect>
 			</wv-column>
 		</wv-row>
 	</wv-section>

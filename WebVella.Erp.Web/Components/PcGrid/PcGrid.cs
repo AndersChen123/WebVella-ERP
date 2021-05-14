@@ -10,6 +10,7 @@ using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -28,16 +29,16 @@ namespace WebVella.Erp.Web.Components
 			[JsonProperty(PropertyName = "is_visible")]
 			public string IsVisible { get; set; } = "";
 
-            //[JsonProperty(PropertyName = "pager")]
-            //public string Pager { get; set; } = "1";
+			//[JsonProperty(PropertyName = "pager")]
+			//public string Pager { get; set; } = "1";
 
-            //[JsonProperty(PropertyName = "total_count")]
-            //public string TotalCount { get; set; } = "0";
+			//[JsonProperty(PropertyName = "total_count")]
+			//public string TotalCount { get; set; } = "0";
 
-            [JsonProperty(PropertyName = "page_size")]
-            public int? PageSize { get; set; } = 10;
+			[JsonProperty(PropertyName = "page_size")]
+			public int? PageSize { get; set; } = 10;
 
-            [JsonProperty(PropertyName = "records")]
+			[JsonProperty(PropertyName = "records")]
 			public string Records { get; set; } = "";
 
 			[JsonProperty(PropertyName = "striped")]
@@ -56,7 +57,7 @@ namespace WebVella.Erp.Web.Components
 			public bool Hover { get; set; } = false;
 
 			[JsonProperty(PropertyName = "responsive_breakpoint")]
-			public CssBreakpoint ResponsiveBreakpoint { get; set; } = CssBreakpoint.None;
+			public WvCssBreakpoint ResponsiveBreakpoint { get; set; } = WvCssBreakpoint.None;
 
 			[JsonProperty(PropertyName = "id")]
 			public Guid? Id { get; set; } = null;// can be inherited
@@ -123,10 +124,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container1Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container1_vertical_align")]
-			public VerticalAlignmentType Container1VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container1VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container1_horizontal_align")]
-			public HorizontalAlignmentType Container1HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container1HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 
 			#endregion
 
@@ -156,10 +157,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container2Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container2_vertical_align")]
-			public VerticalAlignmentType Container2VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container2VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container2_horizontal_align")]
-			public HorizontalAlignmentType Container2HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container2HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container3 >>
@@ -188,10 +189,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container3Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container3_vertical_align")]
-			public VerticalAlignmentType Container3VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container3VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container3_horizontal_align")]
-			public HorizontalAlignmentType Container3HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container3HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container4 >>
@@ -220,10 +221,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container4Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container4_vertical_align")]
-			public VerticalAlignmentType Container4VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container4VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container4_horizontal_align")]
-			public HorizontalAlignmentType Container4HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container4HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container5 >>
@@ -252,10 +253,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container5Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container5_vertical_align")]
-			public VerticalAlignmentType Container5VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container5VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container5_horizontal_align")]
-			public HorizontalAlignmentType Container5HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container5HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container6 >>
@@ -284,10 +285,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container6Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container6_vertical_align")]
-			public VerticalAlignmentType Container6VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container6VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container6_horizontal_align")]
-			public HorizontalAlignmentType Container6HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container6HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container7 >>
@@ -316,10 +317,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container7Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container7_vertical_align")]
-			public VerticalAlignmentType Container7VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container7VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container7_horizontal_align")]
-			public HorizontalAlignmentType Container7HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container7HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container8 >>
@@ -348,10 +349,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container8Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container8_vertical_align")]
-			public VerticalAlignmentType Container8VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container8VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container8_horizontal_align")]
-			public HorizontalAlignmentType Container8HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container8HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container9 >>
@@ -380,10 +381,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container9Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container9_vertical_align")]
-			public VerticalAlignmentType Container9VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container9VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container9_horizontal_align")]
-			public HorizontalAlignmentType Container9HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container9HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container10 >>
@@ -412,10 +413,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container10Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container10_vertical_align")]
-			public VerticalAlignmentType Container10VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container10VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container10_horizontal_align")]
-			public HorizontalAlignmentType Container10HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container10HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container11 >>
@@ -444,10 +445,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container11Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container11_vertical_align")]
-			public VerticalAlignmentType Container11VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container11VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container11_horizontal_align")]
-			public HorizontalAlignmentType Container11HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container11HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 			#region << container12 >>
@@ -476,10 +477,10 @@ namespace WebVella.Erp.Web.Components
 			public string Container12Class { get; set; } = "";
 
 			[JsonProperty(PropertyName = "container12_vertical_align")]
-			public VerticalAlignmentType Container12VerticalAlign { get; set; } = VerticalAlignmentType.None;
+			public WvVerticalAlignmentType Container12VerticalAlign { get; set; } = WvVerticalAlignmentType.None;
 
 			[JsonProperty(PropertyName = "container12_horizontal_align")]
-			public HorizontalAlignmentType Container12HorizontalAlign { get; set; } = HorizontalAlignmentType.None;
+			public WvHorizontalAlignmentType Container12HorizontalAlign { get; set; } = WvHorizontalAlignmentType.None;
 			#endregion
 
 		}
@@ -494,7 +495,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -529,43 +530,48 @@ namespace WebVella.Erp.Web.Components
 				ViewBag.ComponentContext = context;
 
 
-                ViewBag.CssBreakpointOptions = ModelExtensions.GetEnumAsSelectOptions<CssBreakpoint>();
-                ViewBag.Page = 1;
+				ViewBag.CssBreakpointOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvCssBreakpoint>();
+				ViewBag.Page = 1;
 				ViewBag.TotalCount = 0;
 
-                if(options.PageSize != null)
-                {
-                    ViewBag.PageSize = options.PageSize;
-                }
-                else
-                {
-                    ViewBag.PageSize = 0;
-                }
+				if(options.PageSize != null)
+				{
+					ViewBag.PageSize = options.PageSize;
+				}
+				else
+				{
+					ViewBag.PageSize = 0;
+				}
 				
 
 				if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
 				{
-                    var isVisible = true;
-                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
-                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
-                    {
-                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
-                        {
-                            isVisible = outBool;
-                        }
-                    }
-                    else if (isVisibleDS is Boolean)
-                    {
-                        isVisible = (bool)isVisibleDS;
-                    }
-                    ViewBag.IsVisible = isVisible;
+					var isVisible = true;
+					var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+					if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+					{
+						if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+						{
+							isVisible = outBool;
+						}
+					}
+					else if (isVisibleDS is Boolean)
+					{
+						isVisible = (bool)isVisibleDS;
+					}
+					ViewBag.IsVisible = isVisible;
 
-                    ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as EntityRecordList ?? new EntityRecordList();
+					ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as EntityRecordList ?? new EntityRecordList();
 
-					if (ViewBag.Records is EntityRecordList)
+					if (ViewBag.Records.Count > 0)
 					{
 						ViewBag.TotalCount = ((EntityRecordList)ViewBag.Records).TotalCount;
 					}
+					//Could be a simple List<EntityRecord> (if from relation)
+					if(ViewBag.Records.Count == 0){
+						ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as List<EntityRecord> ?? new List<EntityRecord>();
+					}
+
 					string pageKey = options.Prefix + options.QueryStringPage;
 					if (HttpContext.Request.Query.ContainsKey(pageKey))
 					{
@@ -587,15 +593,15 @@ namespace WebVella.Erp.Web.Components
 					}
 				}
 				else {
-					ViewBag.VerticalAlignmentOptions = ModelExtensions.GetEnumAsSelectOptions<VerticalAlignmentType>();
-					ViewBag.HorizontalAlignmentOptions = ModelExtensions.GetEnumAsSelectOptions<HorizontalAlignmentType>();
+					ViewBag.VerticalAlignmentOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvVerticalAlignmentType>();
+					ViewBag.HorizontalAlignmentOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvHorizontalAlignmentType>();
 				}
-				var columns = new List<GridColumn>();
+				var columns = new List<WvGridColumnMeta>();
 
 				#region << Init Columns >>
 				if (options.VisibleColumns > 0)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container1Id,
 						Name = options.Container1Name,
@@ -607,7 +613,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 1)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container2Id,
 						Name = options.Container2Name,
@@ -619,7 +625,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 2)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container3Id,
 						Name = options.Container3Name,
@@ -631,7 +637,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 3)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container4Id,
 						Name = options.Container4Name,
@@ -643,7 +649,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 4)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container5Id,
 						Name = options.Container5Name,
@@ -655,7 +661,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 5)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container6Id,
 						Name = options.Container6Name,
@@ -667,7 +673,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 6)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container7Id,
 						Name = options.Container7Name,
@@ -679,7 +685,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 7)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container8Id,
 						Name = options.Container8Name,
@@ -691,7 +697,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 8)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container9Id,
 						Name = options.Container9Name,
@@ -703,7 +709,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 9)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container10Id,
 						Name = options.Container10Name,
@@ -715,7 +721,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 10)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container11Id,
 						Name = options.Container11Name,
@@ -727,7 +733,7 @@ namespace WebVella.Erp.Web.Components
 				}
 				if (options.VisibleColumns > 11)
 				{
-					columns.Add(new GridColumn()
+					columns.Add(new WvGridColumnMeta()
 					{
 						ContainerId = options.Container12Id,
 						Name = options.Container12Name,

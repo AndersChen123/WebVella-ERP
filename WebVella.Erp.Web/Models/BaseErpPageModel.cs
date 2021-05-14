@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
 using System.Collections.Generic;
@@ -12,6 +14,7 @@ using WebVella.Erp.Web.Utils;
 
 namespace WebVella.Erp.Web.Models
 {
+	[Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
 	public class BaseErpPageModel : PageModel
 	{
 		private ErpUser currentUser = null;
@@ -218,15 +221,27 @@ namespace WebVella.Erp.Web.Models
 						areaLink += $"</a>";
 						areaMenuItem = new MenuItem()
 						{
+							Id = area.Id,
 							Content = areaLink
 						};
 
 						foreach (var node in area.Nodes)
 						{
-							var nodeLink = $"<a class=\"dropdown-item\" href=\"{node.Url}\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon fa-fw\"></span> {node.Label}</a>";
+							var nodeLink = "";
+							if (!String.IsNullOrWhiteSpace(node.Url))
+							{
+								nodeLink = $"<a class=\"dropdown-item\" href=\"{node.Url}\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon fa-fw\"></span>{node.Label}</a>";
+							}
+							else
+							{
+								nodeLink = $"<a class=\"dropdown-item\" href=\"#\" onclick=\"return false\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon fa-fw\"></span>{node.Label}</a>";
+							}
 							areaMenuItem.Nodes.Add(new MenuItem()
 							{
-								Content = nodeLink
+								Content = nodeLink,
+								Id = node.Id,
+								ParentId = node.ParentId,
+								SortOrder = node.Weight
 							});
 						}
 					}
@@ -237,25 +252,33 @@ namespace WebVella.Erp.Web.Models
 						areaLink += $"</a>";
 						areaMenuItem = new MenuItem()
 						{
-							Content = areaLink
+							Content = areaLink,
+							Id = area.Nodes[0].Id,
+							ParentId = area.Nodes[0].ParentId,
+							SortOrder = area.Nodes[0].Weight
 						};
 					}
 
-					if( ErpRequestContext.SitemapArea == null && ErpRequestContext.Page != null && ErpRequestContext.Page.Type != PageType.Application)
+					if (ErpRequestContext.SitemapArea == null && ErpRequestContext.Page != null && ErpRequestContext.Page.Type != PageType.Application)
+					{
+						Debug.WriteLine("<><><><> ERP results in page not found");
 						return new NotFoundResult();
+					}
 
 					if (ErpRequestContext.SitemapArea != null && area.Id == ErpRequestContext.SitemapArea.Id)
-                        areaMenuItem.Class = "current";
+						areaMenuItem.Class = "current";
 
 					//Process the an unusual case when the area has a node type URL which has a link to an app Page or a site page.
 					//Then there is no SitemapArea in the ErpRequest as the URL does not has the information about one but still it needs to be 
 					//marked as current
-					if (ErpRequestContext.SitemapArea == null) {
+					if (ErpRequestContext.SitemapArea == null)
+					{
 						var urlNodes = area.Nodes.FindAll(x => x.Type == SitemapNodeType.Url);
 						var path = HttpContext.Request.Path;
 						foreach (var urlNode in urlNodes)
 						{
-							if (path == urlNode.Url) {
+							if (path == urlNode.Url)
+							{
 								areaMenuItem.Class = "current";
 							}
 						}
@@ -272,13 +295,13 @@ namespace WebVella.Erp.Web.Models
 			var sitePages = pageSrv.GetSitePages();
 			foreach (var sitePage in sitePages)
 			{
-                if (sitePage.Weight < 1000)
-                {
-                    SiteMenu.Add(new MenuItem()
-                    {
-                        Content = $"<a class=\"dropdown-item\" href=\"/s/{sitePage.Name}\">{sitePage.Label}</a>"
-                    });
-                }
+				if (sitePage.Weight < 1000)
+				{
+					SiteMenu.Add(new MenuItem()
+					{
+						Content = $"<a class=\"dropdown-item\" href=\"/s/{sitePage.Name}\">{sitePage.Label}</a>"
+					});
+				}
 			}
 
 
@@ -288,10 +311,10 @@ namespace WebVella.Erp.Web.Models
 			DataModel = new PageDataModel(this);
 
 			List<Guid> currentUserRoles = new List<Guid>();
-			if (CurrentUser != null )
+			if (CurrentUser != null)
 				currentUserRoles.AddRange(CurrentUser.Roles.Select(x => x.Id));
 
-			if( ErpRequestContext.App != null )
+			if (ErpRequestContext.App != null)
 			{
 				if (ErpRequestContext.App.Access == null || ErpRequestContext.App.Access.Count == 0)
 					new LocalRedirectResult("/error?401");
@@ -315,39 +338,39 @@ namespace WebVella.Erp.Web.Models
 			return true;
 		}
 
-		//protected void ValidateRecordSubmission(EntityRecord postObject, Entity entity, ValidationException validation)
-		//{
-		//	if (entity == null || postObject == null || postObject.Properties.Count == 0 || validation == null)
-		//		return;
+		protected void ValidateRecordSubmission(EntityRecord postObject, Entity entity, ValidationException validation)
+		{
+			if (entity == null || postObject == null || postObject.Properties.Count == 0 || validation == null)
+				return;
 
-		//	foreach (var property in postObject.Properties)
-		//	{
-		//		//TODO relations validation
-		//		if (property.Key.StartsWith("$"))
-		//			continue;
+			foreach (var property in postObject.Properties)
+			{
+				//TODO relations validation
+				if (property.Key.StartsWith("$"))
+					continue;
 
-		//		Field fieldMeta = entity.Fields.FirstOrDefault(x => x.Name == property.Key);
-		//		if (fieldMeta != null)
-		//		{
-		//			switch (fieldMeta.GetFieldType())
-		//			{
-		//				case FieldType.AutoNumberField:
-		//					if (property.Value != null && !String.IsNullOrWhiteSpace(property.Value.ToString()))
-		//					{
-		//						validation.Errors.Add(new ValidationError(property.Key, "Autonumber field value should be null or empty string"));
-		//					}
-		//					break;
-		//				default:
-		//					if (fieldMeta.Required &&
-		//						(property.Value == null || String.IsNullOrWhiteSpace(property.Value.ToString())))
-		//					{
-		//						validation.Errors.Add(new ValidationError(property.Key, "Required"));
-		//					}
-		//					break;
-		//			}
-		//		}
-		//	}
-		//}
+				Field fieldMeta = entity.Fields.FirstOrDefault(x => x.Name == property.Key);
+				if (fieldMeta != null)
+				{
+					switch (fieldMeta.GetFieldType())
+					{
+						//case FieldType.AutoNumberField:
+						//	if (property.Value != null && !String.IsNullOrWhiteSpace(property.Value.ToString()))
+						//	{
+						//		validation.Errors.Add(new ValidationError(property.Key, "Autonumber field value should be null or empty string"));
+						//	}
+						//	break;
+						default:
+							if (fieldMeta.Required &&
+								(property.Value == null || String.IsNullOrWhiteSpace(property.Value.ToString())))
+							{
+								validation.Errors.Add(new ValidationError(property.Key, "Required"));
+							}
+							break;
+					}
+				}
+			}
+		}
 
 		public object TryGetDataSourceProperty(string propertyName)
 		{
@@ -390,7 +413,8 @@ namespace WebVella.Erp.Web.Models
 			return pageModel;
 		}
 
-		public void AddUserMenu(MenuItem menu) {
+		public void AddUserMenu(MenuItem menu)
+		{
 			UserMenu.Add(menu);
 			UserMenu = UserMenu.OrderBy(x => x.SortOrder).ToList();
 		}
@@ -400,7 +424,8 @@ namespace WebVella.Erp.Web.Models
 
 			#region << Set BodyClass >>
 			ViewData["BodyBorderColor"] = "#555";
-			if (ErpRequestContext.App != null && !String.IsNullOrWhiteSpace(ErpRequestContext.App.Color)) {
+			if (ErpRequestContext.App != null && !String.IsNullOrWhiteSpace(ErpRequestContext.App.Color))
+			{
 				ViewData["BodyBorderColor"] = ErpRequestContext.App.Color;
 			}
 			if (ToolbarMenu.Count > 0)
@@ -431,13 +456,14 @@ namespace WebVella.Erp.Web.Models
 					ViewData["BodyClass"] = bodyClass + classAddon;
 				}
 			}
-            ViewData["AppName"] = ErpSettings.AppName;
-            ViewData["SystemMasterBodyStyle"] = "";
-            if (!String.IsNullOrWhiteSpace(ErpSettings.SystemMasterBackgroundImageUrl)) {
-                ViewData["SystemMasterBodyStyle"] = "background-image: url('" + ErpSettings.SystemMasterBackgroundImageUrl + "');background-position: top center;background-repeat: repeat;min-height: 100vh; ";
-            }
-            #endregion
-        }
+			ViewData["AppName"] = ErpSettings.AppName;
+			ViewData["SystemMasterBodyStyle"] = "";
+			if (!String.IsNullOrWhiteSpace(ErpSettings.SystemMasterBackgroundImageUrl))
+			{
+				ViewData["SystemMasterBodyStyle"] = "background-image: url('" + ErpSettings.SystemMasterBackgroundImageUrl + "');background-position: top center;background-repeat: repeat;min-height: 100vh; ";
+			}
+			#endregion
+		}
 
 	}
 }

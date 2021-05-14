@@ -152,6 +152,155 @@ namespace WebVella.Erp.Jobs
 									if ((!schedulePlan.EndDate.HasValue) || (nextActivation < schedulePlan.EndDate.Value))
 									{
 										schedulePlan.NextTriggerTime = nextActivation;
+									} 
+									else
+									{
+										schedulePlan.NextTriggerTime = null;
+									}
+
+									break;
+								}
+							case SchedulePlanType.Monthly:
+								{
+									if (startNewJob)
+										schedulePlan.LastTriggerTime = DateTime.UtcNow;
+
+									DateTime nextActivation = schedulePlan.LastTriggerTime.HasValue
+																  ? schedulePlan.LastTriggerTime.Value.AddMonths(1)
+																  : DateTime.UtcNow.AddMonths(1);
+									if ((!schedulePlan.EndDate.HasValue) || (nextActivation < schedulePlan.EndDate.Value))
+									{
+										schedulePlan.NextTriggerTime = nextActivation;
+									}
+									else
+									{
+										schedulePlan.NextTriggerTime = null;
+									}
+									break;
+								}
+						}
+
+						if (startNewJob)
+						{
+							try
+							{
+								Job job = JobManager.Current.CreateJob(schedulePlan.JobType.Id, schedulePlan.JobAttributes, schedulePlanId: schedulePlan.Id);
+								schedulePlan.LastStartedJobId = job.Id;
+							}
+							catch(Exception scex)
+							{
+								throw new Exception($"Schedule plan '{schedulePlan.Name}' failed to create job.", scex);
+							}
+						}
+						UpdateSchedulePlanShort(schedulePlan);
+					}
+
+				}
+				catch (Exception ex)
+				{
+
+					try
+					{
+						DbContext.CreateContext(Erp.ErpSettings.ConnectionString);
+
+						using (var secCtx = SecurityContext.OpenSystemScope())
+						{
+							Log log = new Log();
+							log.Create(LogType.Error, "ScheduleManager.Process", ex);
+						}
+					}
+					finally
+					{
+						DbContext.CloseContext();
+					}
+
+				}
+				finally
+				{
+					Thread.Sleep(12000);
+				}
+			}
+		}
+
+		internal async void ProcessSchedulesAsync(CancellationToken stoppingToken)
+		{
+			if (!Settings.Enabled)
+				return;
+
+
+#if !DEBUG
+			try { await Task.Delay(120000, stoppingToken); } catch (TaskCanceledException) { };
+#endif
+
+			while (!stoppingToken.IsCancellationRequested)
+			{
+				try
+				{
+					//Get ready for execution schedules
+					List<SchedulePlan> schedulePlans = JobService.GetReadyForExecutionScheduledPlans();
+
+					//foreach schedule if it's time create a job and save it to db
+					foreach (var schedulePlan in schedulePlans)
+					{
+						//run new job if last one is finished or canceled
+						bool startNewJob = true;
+						if (schedulePlan.LastStartedJobId.HasValue)
+							startNewJob = JobService.IsJobFinished(schedulePlan.LastStartedJobId.Value);
+
+						//calculate next schedule run time and update
+						switch (schedulePlan.Type)
+						{
+							case SchedulePlanType.Interval:
+								{
+									if (startNewJob)
+										schedulePlan.LastTriggerTime = DateTime.UtcNow;
+
+									DateTime startDate = DateTime.UtcNow;
+
+									DateTime? nextActivation = FindIntervalSchedulePlanNextTriggerDate(schedulePlan, startDate, schedulePlan.LastTriggerTime);
+									if (nextActivation.HasValue)
+									{
+										schedulePlan.NextTriggerTime = nextActivation.Value;
+									}
+									else
+									{
+										schedulePlan.NextTriggerTime = null;
+									}
+
+									break;
+								}
+							case SchedulePlanType.Daily:
+								{
+									if (startNewJob)
+										schedulePlan.LastTriggerTime = DateTime.UtcNow;
+
+									DateTime startDate = DateTime.UtcNow;
+
+									DateTime? nextActivation = FindDailySchedulePlanNextTriggerDate(schedulePlan, startDate.AddMinutes(1),
+											schedulePlan.StartDate.HasValue ? schedulePlan.StartDate.Value : startDate);
+									if (nextActivation.HasValue)
+									{
+										schedulePlan.NextTriggerTime = nextActivation.Value;
+									}
+									else
+									{
+										schedulePlan.NextTriggerTime = null;
+									}
+
+									break;
+								}
+							case SchedulePlanType.Weekly:
+								{
+									if (startNewJob)
+										schedulePlan.LastTriggerTime = DateTime.UtcNow;
+
+									DateTime nextActivation = schedulePlan.LastTriggerTime.HasValue
+																  ? schedulePlan.LastTriggerTime.Value.AddDays(7)
+																  : DateTime.UtcNow.AddDays(7);
+
+									if ((!schedulePlan.EndDate.HasValue) || (nextActivation < schedulePlan.EndDate.Value))
+									{
+										schedulePlan.NextTriggerTime = nextActivation;
 									}
 									else
 									{
@@ -182,8 +331,15 @@ namespace WebVella.Erp.Jobs
 
 						if (startNewJob)
 						{
-							Job job = JobManager.Current.CreateJob(schedulePlan.JobType.Id, schedulePlan.JobAttributes, schedulePlanId: schedulePlan.Id);
-							schedulePlan.LastStartedJobId = job.Id;
+							try
+							{
+								Job job = JobManager.Current.CreateJob(schedulePlan.JobType.Id, schedulePlan.JobAttributes, schedulePlanId: schedulePlan.Id);
+								schedulePlan.LastStartedJobId = job.Id;
+							}
+							catch (Exception scex)
+							{
+								throw new Exception($"Schedule plan '{schedulePlan.Name}' failed to create job.", scex);
+							}
 						}
 						UpdateSchedulePlanShort(schedulePlan);
 					}
@@ -210,7 +366,7 @@ namespace WebVella.Erp.Jobs
 				}
 				finally
 				{
-					Thread.Sleep(12000);
+					try { await Task.Delay(10000, stoppingToken); } catch (TaskCanceledException) { };
 				}
 			}
 		}

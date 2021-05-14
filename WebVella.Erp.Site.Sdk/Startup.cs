@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Net.Http.Headers;
 using Newtonsoft.Json;
 using System;
@@ -19,10 +20,6 @@ namespace WebVella.Erp.Site.Sdk
 {
 	public class Startup
 	{
-		public Startup()
-		{
-		}
-
 		// This method gets called by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
@@ -39,18 +36,23 @@ namespace WebVella.Erp.Site.Sdk
 
 			services.AddDetectionCore().AddDevice();
 
+
 			services.AddMvc()
 
 				.AddRazorPagesOptions(options =>
 				{
 					options.Conventions.AuthorizeFolder("/");
 					options.Conventions.AllowAnonymousToPage("/login");
+					options.Conventions.AllowAnonymousToPage("/dev");
 				})
-				.AddJsonOptions(options =>
+				.AddNewtonsoftJson(options =>
 				{
 					options.SerializerSettings.Converters.Add(new ErpDateTimeJsonConverter());
 				});
 
+			services.AddControllersWithViews();
+			services.AddRazorPages().AddRazorRuntimeCompilation();
+			services.AddServerSideBlazor().AddCircuitOptions(options => {  options.DetailedErrors = true; });
 			//adds global datetime converter for json.net
 			JsonConvert.DefaultSettings = () => new JsonSerializerSettings
 			{
@@ -61,7 +63,7 @@ namespace WebVella.Erp.Site.Sdk
 					.AddCookie(options =>
 					{
 						options.Cookie.HttpOnly = true;
-						options.Cookie.Name = "erp_auth";
+						options.Cookie.Name = "erp_auth_sdk";
 						options.LoginPath = new PathString("/login");
 						options.LogoutPath = new PathString("/logout");
 						options.AccessDeniedPath = new PathString("/error?access_denied");
@@ -72,20 +74,12 @@ namespace WebVella.Erp.Site.Sdk
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-		public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			app.UseRequestLocalization(new RequestLocalizationOptions
 			{
 				DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(CultureInfo.GetCultureInfo("en-US"))
 			});
-
-			app.UseAuthentication();
-
-			app
-			.UseErpPlugin<NextPlugin>()
-			.UseErpPlugin<SdkPlugin>()
-			.UseErp()
-			.UseErpMiddleware();
 
 			//env.EnvironmentName = EnvironmentName.Production;
 			// Add the following to the request pipeline only in development environment.
@@ -109,15 +103,31 @@ namespace WebVella.Erp.Site.Sdk
 
 			app.UseStaticFiles(new StaticFileOptions
 			{
+				ServeUnknownFileTypes = true,
 				OnPrepareResponse = ctx =>
 				{
-					const int durationInSeconds = 60 * 60 * 24 * 30; //30 days caching of these resources
-					ctx.Context.Response.Headers[HeaderNames.CacheControl] =
-						"public,max-age=" + durationInSeconds;
+					const int durationInSeconds = 60 * 60 * 24 * 30 * 12;
+					ctx.Context.Response.Headers[HeaderNames.CacheControl] = "public,max-age=" + durationInSeconds;
+					ctx.Context.Response.Headers[HeaderNames.Expires] = new[] { DateTime.UtcNow.AddYears(1).ToString("R") }; // Format RFC1123
 				}
 			});
+			app.UseStaticFiles(); //Workaround for blazor to work - https://github.com/dotnet/aspnetcore/issues/9588
+			app.UseRouting();
+			app.UseAuthentication();
+			app.UseAuthorization();
 
-			app.UseMvc(routes => { routes.MapRoute(name: "default", template: "{controller=Home}/{action=Index}/{id?}"); });
+			app
+			//.UseErpPlugin<NextPlugin>()
+			.UseErpPlugin<SdkPlugin>()
+			.UseErp()
+			.UseErpMiddleware();
+
+			app.UseEndpoints(endpoints =>
+			{
+				endpoints.MapBlazorHub(); 
+				endpoints.MapRazorPages();
+				endpoints.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+			});
 		}
 	}
 }

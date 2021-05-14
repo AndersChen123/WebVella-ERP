@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
+using WebVella.TagHelpers.TagHelpers;
 using Yahoo.Yui.Compressor;
 
 namespace WebVella.Erp.Web.TagHelpers
@@ -43,7 +45,7 @@ namespace WebVella.Erp.Web.TagHelpers
 			{
 				try
 				{
-					DataSourceVariable = JsonConvert.DeserializeObject<DataSourceVariable>((Value ?? "").ToString());
+					DataSourceVariable = JsonConvert.DeserializeObject<DataSourceVariable>((Value ?? "").ToString(),new JsonSerializerSettings() { MissingMemberHandling = MissingMemberHandling.Error});
 				}
 				catch
 				{
@@ -152,12 +154,16 @@ namespace WebVella.Erp.Web.TagHelpers
 				{
 					divEl.AddCssClass("code");
 				}
+				else if (DataSourceVariable != null && DataSourceVariable.Type == DataSourceVariableType.SNIPPET)
+				{
+					divEl.AddCssClass("snippet");
+				}
 				else
 				{
 					divEl.AddCssClass("html");
 				}
 				var select2ContainerEl = new TagBuilder("span");
-				select2ContainerEl.AddCssClass("select2 select2-container select2-container--default d-block disabled");
+				select2ContainerEl.AddCssClass("select2 select2-container select2-container--bootstrap4 d-block disabled");
 
 				var select2SelectionEl = new TagBuilder("span");
 				select2SelectionEl.AddCssClass("selection");
@@ -169,7 +175,7 @@ namespace WebVella.Erp.Web.TagHelpers
 				select2SelectionUlEl.AddCssClass("select2-selection__rendered");
 				var optionEl = new TagBuilder("li");
 				optionEl.AddCssClass("select2-selection__choice");
-				if (DataSourceVariable != null && DataSourceVariable.Type == DataSourceVariableType.DATASOURCE)
+				if (DataSourceVariable != null && (DataSourceVariable.Type == DataSourceVariableType.DATASOURCE || DataSourceVariable.Type == DataSourceVariableType.SNIPPET))
 				{
 					optionEl.Attributes.Add("title", DataSourceVariable.String);
 				}
@@ -190,6 +196,14 @@ namespace WebVella.Erp.Web.TagHelpers
 					optionEl.InnerHtml.AppendHtml(optionIcon);
 					var textSpan = new TagBuilder("span");
 					textSpan.InnerHtml.AppendHtml("c# code");
+					optionEl.InnerHtml.AppendHtml(textSpan);
+				}
+				else if (DataSourceVariable != null && DataSourceVariable.Type == DataSourceVariableType.SNIPPET)
+				{
+					optionIcon.AddCssClass("fa fa-fw fa-cog mr-1");
+					optionEl.InnerHtml.AppendHtml(optionIcon);
+					var textSpan = new TagBuilder("span");
+					textSpan.InnerHtml.AppendHtml(DataSourceVariable.String);
 					optionEl.InnerHtml.AppendHtml(textSpan);
 				}
 				else
@@ -276,7 +290,7 @@ namespace WebVella.Erp.Web.TagHelpers
 				#region << Type >>
 				{
 					var fieldGroupEl = new TagBuilder("div");
-					fieldGroupEl.AddCssClass("form-group erp-field");
+					fieldGroupEl.AddCssClass("form-group wv-field");
 					var fieldLabel = new TagBuilder("label");
 					fieldLabel.AddCssClass("control-label label-stacked");
 					fieldLabel.InnerHtml.AppendHtml("Type");
@@ -353,6 +367,30 @@ namespace WebVella.Erp.Web.TagHelpers
 						fieldFormControl.InnerHtml.AppendHtml(formCheckEl);
 					}
 					#endregion
+
+					#region << Snippet chkb >>
+					{
+						var formCheckEl = new TagBuilder("div");
+						formCheckEl.AddCssClass("form-check form-check-inline");
+						var formCheckInput = new TagBuilder("input");
+						formCheckInput.AddCssClass("form-check-input ds-type-radio");
+						formCheckInput.Attributes.Add("type", "radio");
+						formCheckInput.Attributes.Add("id", $"modal-{FieldId}-checkbox-snippet");
+						formCheckInput.Attributes.Add("value", "3");
+						if (DataSourceVariable != null && DataSourceVariable.Type == DataSourceVariableType.SNIPPET)
+						{
+							formCheckInput.Attributes.Add("checked", "checked");
+						}
+						formCheckEl.InnerHtml.AppendHtml(formCheckInput);
+						var formCheckLabel = new TagBuilder("label");
+						formCheckLabel.AddCssClass("form-check-label");
+						formCheckLabel.Attributes.Add("for", $"modal-{FieldId}-checkbox-snippet");
+						formCheckLabel.InnerHtml.AppendHtml("resource");
+						formCheckEl.InnerHtml.AppendHtml(formCheckLabel);
+						fieldFormControl.InnerHtml.AppendHtml(formCheckEl);
+					}
+					#endregion
+
 					fieldGroupEl.InnerHtml.AppendHtml(fieldFormControl);
 					editModalBody.InnerHtml.AppendHtml(fieldGroupEl);
 				}
@@ -361,7 +399,7 @@ namespace WebVella.Erp.Web.TagHelpers
 				#region << Datasource >>
 				{
 					var fieldGroupEl = new TagBuilder("div");
-					fieldGroupEl.AddCssClass("form-group erp-field");
+					fieldGroupEl.AddCssClass("form-group wv-field");
 					if (DataSourceVariable != null && DataSourceVariable.Type != DataSourceVariableType.DATASOURCE)
 					{
 						fieldGroupEl.AddCssClass("d-none");
@@ -393,7 +431,7 @@ namespace WebVella.Erp.Web.TagHelpers
 				#region << Code >>
 				{
 					var fieldGroupEl = new TagBuilder("div");
-					fieldGroupEl.AddCssClass("form-group erp-field");
+					fieldGroupEl.AddCssClass("form-group wv-field");
 					if (DataSourceVariable == null || DataSourceVariable.Type != DataSourceVariableType.CODE)
 					{
 						fieldGroupEl.AddCssClass("d-none");
@@ -457,7 +495,7 @@ public class SampleCodeVariable : ICodeVariable
 				#region << HTML >>
 				{
 					var fieldGroupEl = new TagBuilder("div");
-					fieldGroupEl.AddCssClass("form-group erp-field");
+					fieldGroupEl.AddCssClass("form-group wv-field");
 					if (DataSourceVariable == null || DataSourceVariable.Type != DataSourceVariableType.HTML)
 					{
 						fieldGroupEl.AddCssClass("d-none");
@@ -500,10 +538,80 @@ public class SampleCodeVariable : ICodeVariable
 				}
 				#endregion
 
+				#region << File Snippet >>
+				var snippetWrapEl = new TagBuilder("div");
+				if (DataSourceVariable == null || DataSourceVariable.Type != DataSourceVariableType.SNIPPET)
+				{
+					snippetWrapEl.AddCssClass("d-none");
+				}
+				snippetWrapEl.Attributes.Add("id", $"modal-{FieldId}-snippet-group");
+
+				{
+					var fieldGroupEl = new TagBuilder("div");
+					fieldGroupEl.AddCssClass("form-group wv-field");
+
+					var fieldLabel = new TagBuilder("label");
+					fieldLabel.AddCssClass("control-label label-stacked");
+					fieldLabel.InnerHtml.AppendHtml("Embedded Resource Name");
+					fieldGroupEl.InnerHtml.AppendHtml(fieldLabel);
+
+					var inputEl = new TagBuilder("input");
+					inputEl.AddCssClass("form-control erp-text");
+					inputEl.Attributes.Add("type", "text");
+					if (DataSourceVariable != null && DataSourceVariable.Type == DataSourceVariableType.SNIPPET)
+					{
+						inputEl.Attributes.Add("value", DataSourceVariable.String);
+					}
+					else
+					{
+						inputEl.Attributes.Add("value", "");
+					}
+					fieldGroupEl.InnerHtml.AppendHtml(inputEl);
+					snippetWrapEl.InnerHtml.AppendHtml(fieldGroupEl);
+				}
+				{
+					var fieldGroupEl = new TagBuilder("div");
+					fieldGroupEl.AddCssClass("form-group wv-field");
+
+					var fieldLabel = new TagBuilder("label");
+					fieldLabel.AddCssClass("control-label label-stacked");
+					fieldLabel.InnerHtml.AppendHtml("Resource Content");
+					fieldGroupEl.InnerHtml.AppendHtml(fieldLabel);
+
+					var editorWrapperEl = new TagBuilder("div");
+					var wrapperCssClassList = new List<string>();
+					wrapperCssClassList.Add("form-control-plaintext erp-code");
+					if (ValidationErrors.Count > 0)
+					{
+						wrapperCssClassList.Add("is-invalid");
+					}
+					editorWrapperEl.Attributes.Add("class", String.Join(' ', wrapperCssClassList));
+					var editorWrapper = new TagBuilder("div");
+					editorWrapper.Attributes.Add("id", $"modal-{FieldId}-snippet-editor");
+					editorWrapper.Attributes.Add("style", $"min-height:250px");
+					editorWrapperEl.InnerHtml.AppendHtml(editorWrapper);
+					fieldGroupEl.InnerHtml.AppendHtml(editorWrapperEl);
+
+					var inputEl = new TagBuilder("input");
+					inputEl.Attributes.Add("type", "hidden");
+					inputEl.Attributes.Add("id", $"modal-{FieldId}-snippet-input");
+					if (DataSourceVariable != null && 
+						DataSourceVariable.Type == DataSourceVariableType.SNIPPET && !String.IsNullOrWhiteSpace(DataSourceVariable.String))
+					{
+						var snippet = SnippetService.GetSnippet(DataSourceVariable.String);
+						inputEl.Attributes.Add("value", snippet.GetText());
+					}
+					fieldGroupEl.InnerHtml.AppendHtml(inputEl);
+					snippetWrapEl.InnerHtml.AppendHtml(fieldGroupEl);
+				}
+
+				editModalBody.InnerHtml.AppendHtml(snippetWrapEl);
+				#endregion
+
 				#region << Default >>
 				{
 					var fieldGroupEl = new TagBuilder("div");
-					fieldGroupEl.AddCssClass("form-group erp-field");
+					fieldGroupEl.AddCssClass("form-group wv-field");
 					fieldGroupEl.Attributes.Add("id", $"modal-{FieldId}-default-group");
 					var fieldLabel = new TagBuilder("label");
 					fieldLabel.AddCssClass("control-label label-stacked");
@@ -567,6 +675,49 @@ public class SampleCodeVariable : ICodeVariable
 
 			var jsCompressor = new JavaScriptCompressor();
 
+			#region << Init Select2 >>
+			{
+				var wvLibraryInitialized = false;
+				var libraryItemsKey = "WebVella-" + "select2";
+				if (ViewContext.HttpContext.Items.ContainsKey(libraryItemsKey))
+				{
+					var tagHelperContext = (WvTagHelperContext)ViewContext.HttpContext.Items[libraryItemsKey];
+					wvLibraryInitialized = tagHelperContext.Initialized;
+				}
+
+				if (!wvLibraryInitialized)
+				{
+					{
+						var libCssEl = new TagBuilder("link");
+						libCssEl.Attributes.Add("href", "/_content/WebVella.TagHelpers/lib/select2/css/select2.min.css");
+						libCssEl.Attributes.Add("type", "text/css");
+						libCssEl.Attributes.Add("rel", "stylesheet");
+						output.PostContent.AppendHtml(libCssEl);
+						output.PostContent.AppendHtml(Environment.NewLine + "\t");
+					}
+					{
+						var libCssEl = new TagBuilder("link");
+						libCssEl.Attributes.Add("href", "/_content/WebVella.TagHelpers/lib/select2-bootstrap-theme/select2-bootstrap4.css");
+						libCssEl.Attributes.Add("type", "text/css");
+						libCssEl.Attributes.Add("rel", "stylesheet");
+						output.PostContent.AppendHtml(libCssEl);
+						output.PostContent.AppendHtml(Environment.NewLine + "\t");
+					}
+
+					var libJsEl = new TagBuilder("script");
+					libJsEl.Attributes.Add("type", "text/javascript");
+					libJsEl.Attributes.Add("src", "/_content/WebVella.TagHelpers/lib/select2/js/select2.min.js");
+					output.PostContent.AppendHtml(libJsEl);
+					output.PostContent.AppendHtml(Environment.NewLine+"\t");
+
+					ViewContext.HttpContext.Items[libraryItemsKey] = new WvTagHelperContext()
+					{
+						Initialized = true
+					};
+				}
+			}
+			#endregion
+
 			#region << Add Ace lib >>
 			{
 				var aceLibInitialized = false;
@@ -580,7 +731,7 @@ public class SampleCodeVariable : ICodeVariable
 				{
 					var scriptEl = new TagBuilder("script");
 					scriptEl.Attributes.Add("type", "text/javascript");
-					scriptEl.Attributes.Add("src", "/lib/ace/ace.js");
+					scriptEl.Attributes.Add("src", "/_content/WebVella.TagHelpers/lib/ace/ace.js");
 					output.Content.AppendHtml(scriptEl);
 
 					ViewContext.HttpContext.Items[typeof(WvFieldDatasource) + fileName] = new WvTagHelperContext()
@@ -605,7 +756,7 @@ public class SampleCodeVariable : ICodeVariable
 				{
 					var scriptEl = new TagBuilder("script");
 					scriptEl.Attributes.Add("type", "text/javascript");
-					scriptEl.Attributes.Add("src", "/lib/bootstrap-3-typeahead/bootstrap3-typeahead.min.js");
+					scriptEl.Attributes.Add("src", "/_content/WebVella.TagHelpers/lib/bootstrap-3-typeahead/bootstrap3-typeahead.min.js");
 					output.Content.AppendHtml(scriptEl);
 
 					ViewContext.HttpContext.Items[typeof(WvFieldDatasource) + fileName] = new WvTagHelperContext()

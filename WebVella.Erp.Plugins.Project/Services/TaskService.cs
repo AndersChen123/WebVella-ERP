@@ -458,8 +458,7 @@ namespace WebVella.Erp.Plugins.Project.Services
 					//change key
 					record["key"] = projectAbbr + "-" + ((decimal)oldRecord["number"]).ToString("N0");
 
-					var projectEqlResult = new EqlCommand("SELECT id,owner_id FROM project WHERE id = @projectId",
-													new EqlParameter("projectId", newProjectId)).Execute();
+					var projectEqlResult = new EqlCommand("SELECT id,owner_id FROM project WHERE id = @projectId",new EqlParameter("projectId", newProjectId)).Execute();
 					Guid? projectOwnerId = null;
 					if (projectEqlResult != null && ((List<EntityRecord>)projectEqlResult).Any())
 					{

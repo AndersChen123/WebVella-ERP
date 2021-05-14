@@ -53,7 +53,7 @@ namespace WebVella.Erp.Web.Components
 			public string ReturnUrl { get; set; } = "";
 
 			[JsonProperty(PropertyName = "show_page_switch")]
-			public bool ShowPageSwitch { get; set; } = true;
+			public bool ShowPageSwitch { get; set; } = false;
 
             [JsonProperty(PropertyName = "fix_on_scroll")]
             public bool FixOnScroll { get; set; } = false;
@@ -69,7 +69,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");

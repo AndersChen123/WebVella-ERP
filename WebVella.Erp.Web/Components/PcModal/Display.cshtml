@@ -1,8 +1,9 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
-@using WebVella.Erp.Web.Utils;
 @{
 	var options = (PcModal.PcModalOptions)ViewBag.Options;
 	var node = (PageBodyNode)ViewBag.Node;
@@ -11,7 +12,7 @@
 	var footerNodes = node.Nodes.FindAll(x => x.ContainerId == "footer");
 }
 
-<wv-modal title="@ViewBag.ProcessedTitle" id="wv-@(node.Id)" size="@options.Size" position="@options.Position" backdrop="@options.Backdrop" is-visible="(bool)ViewBag.IsVisible">
+<wv-modal title="@ViewBag.ProcessedTitle" id="@options.Id" size="@options.Size" position="@options.Position" backdrop="@options.Backdrop" is-visible="(bool)ViewBag.IsVisible">
 	<wv-modal-body>
 		@foreach (var childNode in bodyNodes)
 		{

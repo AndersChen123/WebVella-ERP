@@ -1,20 +1,30 @@
-﻿using Newtonsoft.Json.Linq;
-using Npgsql;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using WebVella.Erp.Api.Models;
+using Npgsql;
 
 namespace WebVella.Erp.Database
 {
 	public class DbContext : IDisposable
 	{
-		public static DbContext Current { get { return current.Value; } }
-		private static AsyncLocal<DbContext> current = new AsyncLocal<DbContext>();
+		private static AsyncLocal<string> currentDbContextId = new AsyncLocal<string>();
+		private static ConcurrentDictionary<string, DbContext> dbContextDict = new ConcurrentDictionary<string, DbContext>();
+		private readonly object lockObj = new object();
+		public static DbContext Current
+		{
+			get
+			{
+				if (currentDbContextId == null || String.IsNullOrWhiteSpace(currentDbContextId.Value))
+					return null;
+
+				DbContext context = null;
+				dbContextDict.TryGetValue(currentDbContextId.Value, out context);
+				return context;
+			}
+		}
+		//private static AsyncLocal<DbContext> current = new AsyncLocal<DbContext>();
 		private static string connectionString;
 
 		public DbRecordRepository RecordRepository { get; private set; }
@@ -31,10 +41,10 @@ namespace WebVella.Erp.Database
 		private DbContext()
 		{
 			connectionStack = new Stack<DbConnection>();
-			RecordRepository = new DbRecordRepository();
-			EntityRepository = new DbEntityRepository();
-			RelationRepository = new DbRelationRepository();
-			SettingsRepository = new DbSystemSettingsRepository();
+			RecordRepository = new DbRecordRepository(this);
+			EntityRepository = new DbEntityRepository(this);
+			RelationRepository = new DbRelationRepository(this);
+			SettingsRepository = new DbSystemSettingsRepository(this);
 		}
 
 		/// <summary>
@@ -45,12 +55,16 @@ namespace WebVella.Erp.Database
 		{
 			DbConnection con = null;
 			if (transaction != null)
-				con = new DbConnection(transaction);
+				con = new DbConnection(transaction, this);
 			else
-				con = new DbConnection(connectionString);
+				con = new DbConnection(connectionString, this);
 
 			connectionStack.Push(con);
 
+			Debug.WriteLine($"ERP CreateConnection: {currentDbContextId.Value} | Stack count: {connectionStack.Count} | Hash: {con.GetHashCode()}");
+			StackTrace t = new StackTrace();
+			Debug.WriteLine($"========== ERP CreateConnection Stack =====");
+			Debug.WriteLine($"{t.ToString()}");
 			return con;
 		}
 
@@ -60,12 +74,17 @@ namespace WebVella.Erp.Database
 		/// <param name="conn"></param>
 		public bool CloseConnection(DbConnection conn)
 		{
-			var dbConn = connectionStack.Peek();
-			if (dbConn != conn)
-				throw new DbException("You are trying to close connection, before closing inner connections.");
+			lock (lockObj)
+			{
+				var dbConn = connectionStack.Peek();
+				if (dbConn != conn)
+					throw new DbException("You are trying to close connection, before closing inner connections.");
 
-			connectionStack.Pop();
-			return connectionStack.Count == 0;
+				connectionStack.Pop();
+
+				Debug.WriteLine($"ERP CloseConnection: {currentDbContextId.Value} | Stack count: {connectionStack.Count} | Hash: {conn.GetHashCode()}");
+				return connectionStack.Count == 0;
+			}
 		}
 
 		/// <summary>
@@ -93,20 +112,27 @@ namespace WebVella.Erp.Database
 		{
 			connectionString = connString;
 
-			if (current.Value == null)
-				current.Value = new DbContext();
+			currentDbContextId.Value = Guid.NewGuid().ToString();
+			if (!dbContextDict.TryAdd(currentDbContextId.Value, new DbContext()))
+				throw new Exception("Cannot create new context and store it into context dictionary");
 
-			return current.Value;
+			Debug.WriteLine($"ERP CreateContext: {currentDbContextId.Value} | dbContextDict count: {dbContextDict.Keys.Count}");
+
+			DbContext context;
+			if (!dbContextDict.TryGetValue(currentDbContextId.Value, out context))
+				throw new Exception("Cannot create new context and read it into context dictionary");
+
+			return context;
 		}
 
 
 		public static void CloseContext()
 		{
-			if (current.Value != null)
+			if (Current != null)
 			{
-				if (current.Value.transaction != null)
+				if (Current.transaction != null)
 				{
-					current.Value.transaction.Rollback();
+					Current.transaction.Rollback();
 					throw new DbException("Trying to release database context in transactional state. There is open transaction in created connections.");
 				}
 
@@ -116,7 +142,22 @@ namespace WebVella.Erp.Database
 				//}
 			}
 
-			current.Value = null;
+			Debug.WriteLine($"ERP CloseContext BEFORE: {currentDbContextId.Value} | dbContextDict count: {dbContextDict.Keys.Count}");
+			string idValue = null;
+			if (currentDbContextId != null && !string.IsNullOrWhiteSpace(currentDbContextId.Value))
+				idValue = currentDbContextId.Value;
+
+			if (!string.IsNullOrWhiteSpace(idValue))
+			{
+				DbContext context;
+				dbContextDict.TryRemove(idValue, out context);
+				if (context != null)
+					context.Dispose();
+
+				currentDbContextId.Value = null;
+			}
+			Debug.WriteLine($"ERP CloseContext AFTER: dbContextDict count: {dbContextDict.Keys.Count}");
+
 		}
 
 

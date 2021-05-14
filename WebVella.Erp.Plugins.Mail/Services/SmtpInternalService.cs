@@ -1,12 +1,18 @@
-﻿using MailKit.Net.Smtp;
+﻿using HtmlAgilityPack;
+using MailKit.Net.Smtp;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using MimeKit;
+using MimeKit.Utils;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
+using WebVella.Erp.Database;
 using WebVella.Erp.Eql;
 using WebVella.Erp.Exceptions;
 using WebVella.Erp.Plugins.Mail.Api;
@@ -434,6 +440,18 @@ namespace WebVella.Erp.Plugins.Mail.Services
 					valEx.AddError("serviceId", "Smtp service with specified id does not exist");
 			}
 
+			List<string> attachments = new List<string>();
+			if (pageModel.HttpContext.Request.Form.ContainsKey("attachments"))
+			{
+				var ids = pageModel.HttpContext.Request.Form["attachments"].ToString().Split(",", StringSplitOptions.RemoveEmptyEntries).Select(x => new Guid(x));
+				foreach(var id in ids )
+				{
+					var fileRecord = new EqlCommand("SELECT name,path FROM user_file WHERE id = @id", new EqlParameter("id", id)).Execute().FirstOrDefault();
+					if (fileRecord != null)
+						attachments.Add((string)fileRecord["path"]);
+				}
+			}
+
 			//we set current record to store properties which don't exist in current entity 
 			EntityRecord currentRecord = pageModel.DataModel.GetProperty("Record") as EntityRecord;
 			currentRecord["recipient_email"] = recipientEmail;
@@ -446,7 +464,7 @@ namespace WebVella.Erp.Plugins.Mail.Services
 			try
 			{
 				EmailAddress recipient = new EmailAddress( recipientEmail );
-				smtpService.SendEmail(recipient, subject, string.Empty, content);
+				smtpService.SendEmail(recipient, subject, string.Empty, content, attachments: attachments );
 				pageModel.TempData.Put("ScreenMessage", new ScreenMessage() { Message = "Email was successfully sent", Type = ScreenMessageType.Success, Title = "Success" });
 				var returnUrl = pageModel.HttpContext.Request.Query["returnUrl"];
 				return new RedirectResult($"/mail/services/smtp/r/{smtpService.Id}/details?returnUrl={returnUrl}");
@@ -494,6 +512,165 @@ namespace WebVella.Erp.Plugins.Mail.Services
 			
 		}
 
+
+		#region <--- content manipulation --->
+
+		public static void ProcessHtmlContent(BodyBuilder builder)
+		{
+			if (builder == null)
+				return;
+
+			if (string.IsNullOrWhiteSpace(builder.HtmlBody))
+				return;
+
+			try
+			{
+				var htmlDoc = new HtmlDocument();
+				htmlDoc.Load(new MemoryStream(Encoding.UTF8.GetBytes(builder.HtmlBody)));
+
+				if (htmlDoc.DocumentNode == null)
+					return;
+
+				foreach (HtmlNode node in htmlDoc.DocumentNode.SelectNodes("//img[@src]"))
+				{
+					var src = node.Attributes["src"].Value.Split('?', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+
+
+					if (!string.IsNullOrWhiteSpace(src) && src.StartsWith("/fs"))
+					{
+						try
+						{
+							Uri uri = new Uri(src);
+							src = uri.AbsolutePath;
+						}
+						catch { }
+
+						if (src.StartsWith("/fs"))
+							src = src.Substring(3);
+
+						DbFileRepository fsRepository = new DbFileRepository();
+						var file = fsRepository.Find(src);
+						if (file == null)
+							continue;
+
+						var bytes = file.GetBytes();
+
+						var extension = Path.GetExtension(src).ToLowerInvariant();
+						new FileExtensionContentTypeProvider().Mappings.TryGetValue(extension, out string mimeType);
+
+						var imagePart = new MimePart(mimeType)
+						{
+							ContentId = MimeUtils.GenerateMessageId(),
+							Content = new MimeContent(new MemoryStream(bytes)),
+							ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+							ContentTransferEncoding = ContentEncoding.Base64,
+							FileName = Path.GetFileName(src)
+						};
+
+						builder.LinkedResources.Add(imagePart);
+						node.SetAttributeValue("src", $"cid:{imagePart.ContentId}");
+					}
+				}
+				builder.HtmlBody = htmlDoc.DocumentNode.OuterHtml;
+				if (string.IsNullOrWhiteSpace(builder.TextBody) && !string.IsNullOrWhiteSpace(builder.HtmlBody))
+					builder.TextBody = ConvertToPlainText(builder.HtmlBody);
+			}
+			catch
+			{
+				return;
+			}
+		}
+
+
+		private static string ConvertToPlainText(string html)
+		{
+			try
+			{
+				if (string.IsNullOrWhiteSpace(html))
+					return string.Empty;
+
+				HtmlDocument doc = new HtmlDocument();
+				doc.LoadHtml(html);
+
+				StringWriter sw = new StringWriter();
+				ConvertTo(doc.DocumentNode, sw);
+				sw.Flush();
+				return sw.ToString();
+			}
+			catch
+			{
+				return string.Empty;
+			}
+		}
+
+		private static void ConvertContentTo(HtmlNode node, TextWriter outText)
+		{
+			foreach (HtmlNode subnode in node.ChildNodes)
+			{
+				ConvertTo(subnode, outText);
+			}
+		}
+
+		private static void ConvertTo(HtmlNode node, TextWriter outText)
+		{
+			string html;
+			switch (node.NodeType)
+			{
+				case HtmlNodeType.Comment:
+					// don't output comments
+					break;
+
+				case HtmlNodeType.Document:
+					ConvertContentTo(node, outText);
+					break;
+
+				case HtmlNodeType.Text:
+					// script and style must not be output
+					string parentName = node.ParentNode.Name;
+					if ((parentName == "script") || (parentName == "style"))
+						break;
+
+					// get text
+					html = ((HtmlTextNode)node).Text;
+
+					// is it in fact a special closing node output as text?
+					if (HtmlNode.IsOverlappedClosingElement(html))
+						break;
+
+					// check the text is meaningful and not a bunch of white spaces
+					if (html.Trim().Length > 0)
+					{
+						outText.Write(HtmlEntity.DeEntitize(html));
+					}
+					break;
+
+				case HtmlNodeType.Element:
+					switch (node.Name)
+					{
+						case "p":
+							// treat paragraphs as crlf
+							outText.Write(Environment.NewLine);
+							break;
+						case "br":
+							outText.Write(Environment.NewLine);
+							break;
+						case "a":
+							HtmlAttribute att = node.Attributes["href"];
+							outText.Write($"<{att.Value}>");
+							break;
+					}
+
+					if (node.HasChildNodes)
+					{
+						ConvertContentTo(node, outText);
+					}
+					break;
+			}
+		}
+
+		#endregion
+
+
 		internal Email GetEmail(Guid id)
 		{
 			var result = new EqlCommand("SELECT * FROM email WHERE id = @id", new EqlParameter("id", id)).Execute();
@@ -535,10 +712,27 @@ namespace WebVella.Erp.Plugins.Mail.Services
 
 				foreach (var recipient in email.Recipients)
 				{
-					if (!string.IsNullOrWhiteSpace(recipient.Name))
-						message.To.Add(new MailboxAddress(recipient.Name, recipient.Address));
+					if (recipient.Address.StartsWith("cc:"))
+					{
+						if (!string.IsNullOrWhiteSpace(recipient.Name))
+							message.Cc.Add(new MailboxAddress(recipient.Name, recipient.Address.Substring(3)));
+						else
+							message.Cc.Add(new MailboxAddress(recipient.Address.Substring(3)));
+					}
+					else if (recipient.Address.StartsWith("bcc:"))
+					{
+						if (!string.IsNullOrWhiteSpace(recipient.Name))
+							message.Bcc.Add(new MailboxAddress(recipient.Name, recipient.Address.Substring(4)));
+						else
+							message.Bcc.Add(new MailboxAddress(recipient.Address.Substring(4)));
+					}
 					else
-						message.To.Add(new MailboxAddress(recipient.Address));
+					{
+						if (!string.IsNullOrWhiteSpace(recipient.Name))
+							message.To.Add(new MailboxAddress(recipient.Name, recipient.Address));
+						else
+							message.To.Add(new MailboxAddress(recipient.Address));
+					}
 				}
 
 				if (!string.IsNullOrWhiteSpace(email.ReplyToEmail))
@@ -551,6 +745,40 @@ namespace WebVella.Erp.Plugins.Mail.Services
 				var bodyBuilder = new BodyBuilder();
 				bodyBuilder.HtmlBody = email.ContentHtml;
 				bodyBuilder.TextBody = email.ContentText;
+
+				if (email.Attachments != null && email.Attachments.Count > 0)
+				{
+					foreach (var att in email.Attachments )
+					{
+						var filepath = att;
+
+						if (!filepath.StartsWith("/"))
+							filepath = "/" + filepath;
+
+						filepath = filepath.ToLowerInvariant();
+
+						if (filepath.StartsWith("/fs"))
+							filepath = filepath.Substring(3);
+
+						DbFileRepository fsRepository = new DbFileRepository();
+						var file = fsRepository.Find(filepath);
+						var bytes = file.GetBytes();
+
+						var extension = Path.GetExtension(filepath).ToLowerInvariant();
+						new FileExtensionContentTypeProvider().Mappings.TryGetValue(extension, out string mimeType);
+
+						var attachment = new MimePart(mimeType)
+						{
+							Content = new MimeContent(new MemoryStream(bytes)),
+							ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+							ContentTransferEncoding = ContentEncoding.Base64,
+							FileName = Path.GetFileName(filepath)
+						};
+
+						bodyBuilder.Attachments.Add(attachment);
+					}
+				}
+				ProcessHtmlContent(bodyBuilder);
 				message.Body = bodyBuilder.ToMessageBody();
 
 				using (var client = new SmtpClient())
@@ -613,7 +841,7 @@ namespace WebVella.Erp.Plugins.Mail.Services
 
 					pendingEmails = new EqlCommand("SELECT * FROM email WHERE status = @status AND scheduled_on <> NULL" +
 													" AND scheduled_on < @scheduled_on  ORDER BY priority DESC, scheduled_on ASC PAGE 1 PAGESIZE 10",
-								new EqlParameter("status", ((int)EmailStatus.Pending).ToString()),
+                                new EqlParameter("status", ((int)EmailStatus.Pending).ToString()),
 								new EqlParameter("scheduled_on", DateTime.UtcNow)).Execute().MapTo<Email>();
 
 					foreach (var email in pendingEmails)

@@ -1,14 +1,17 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Api.Models;
 @using WebVella.Erp.Web;
 @using WebVella.Erp.Web.Models;
+@using WebVella.TagHelpers.Models;
 @using WebVella.Erp.Web.Components;
 @{
 	var options = (PcChart.PcChartOptions)ViewBag.Options;
 	var node = (PageBodyNode)ViewBag.Node;
 	var erpRequest = (ErpRequestContext)ViewBag.RequestContext;
-	var typeOptions = (List<SelectOption>)ViewBag.ChartTypeOptions;
+	var typeOptions = (List<WvSelectOption>)ViewBag.ChartTypeOptions;
 }
 
 <wv-row>

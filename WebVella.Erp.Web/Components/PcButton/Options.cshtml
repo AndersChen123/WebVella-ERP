@@ -1,13 +1,15 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
-@using WebVella.Erp.Api.Models;
+@using WebVella.TagHelpers.Models;
 @using WebVella.Erp.Web;
 @{
 	var options = (PcButton.PcButtonOptions)ViewBag.Options;
-	var cssSizeOptions = (List<SelectOption>)ViewBag.CssSize;
-	var colorOptions = (List<SelectOption>)ViewBag.ColorOptions;
-	var typeOptions = (List<SelectOption>)ViewBag.TypeOptions;
+	var cssSizeOptions = (List<WvSelectOption>)ViewBag.CssSize;
+	var colorOptions = (List<WvSelectOption>)ViewBag.ColorOptions;
+	var typeOptions = (List<WvSelectOption>)ViewBag.TypeOptions;
 	var erpRequest = (ErpRequestContext)ViewBag.RequestContext;
 }
 

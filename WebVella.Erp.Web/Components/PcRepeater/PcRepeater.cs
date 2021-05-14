@@ -49,7 +49,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -100,7 +100,7 @@ namespace WebVella.Erp.Web.Components
                     if (!isVisible && context.Mode == ComponentMode.Display)
                         return await Task.FromResult<IViewComponentResult>(Content(""));
 
-                    ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as EntityRecordList ?? new EntityRecordList();
+                    ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as List<EntityRecord> ?? new List<EntityRecord>();
                 }
 
                 switch (context.Mode)

@@ -1,18 +1,23 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models.AutoMapper;
 using WebVella.Erp.Database;
 using WebVella.Erp.Jobs;
+using WebVella.Erp.Web.Middleware;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Models.AutoMapper;
 using WebVella.Erp.Web.Services;
+using WebVella.TagHelpers;
 
 namespace WebVella.Erp.Web
 {
@@ -24,6 +29,10 @@ namespace WebVella.Erp.Web
 			services.AddTransient<AuthService>();
 			services.AddScoped<ErpRequestContext>();
 			services.Configure<RazorViewEngineOptions>(options => { options.ViewLocationExpanders.Add(new ErpViewLocationExpander()); });
+			services.ConfigureOptions(typeof(WebConfigurationOptions));
+			services.AddSingleton<IHostedService, ErpJobScheduleService>();
+			services.AddSingleton<IHostedService, ErpJobProcessService>();
+			services.AddScoped<CircuitHandler, SecuritityCircuitHandler>();
 			return services;
 		}
 
@@ -32,14 +41,22 @@ namespace WebVella.Erp.Web
 			using (var secCtx = SecurityContext.OpenSystemScope())
 			{
 				IConfiguration configuration = app.ApplicationServices.GetService<IConfiguration>();
-				IHostingEnvironment env = app.ApplicationServices.GetService<IHostingEnvironment>();
+				IWebHostEnvironment env = app.ApplicationServices.GetService<IWebHostEnvironment>();
 
-				string configPath = "config.json";
-				if (!string.IsNullOrWhiteSpace(configFolder))
-					configPath = System.IO.Path.Combine(configFolder, configPath);
+				if (!ErpSettings.IsInitialized) {
+					string configPath = "config.json";
+					if (!string.IsNullOrWhiteSpace(configFolder))
+						configPath = System.IO.Path.Combine(configFolder, configPath);
 
-				var configurationBuilder = new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddJsonFile(configPath);
-				ErpSettings.Initialize(configurationBuilder.Build());
+					var configurationBuilder = new ConfigurationBuilder().SetBasePath(env.ContentRootPath).AddJsonFile(configPath);
+					ErpSettings.Initialize(configurationBuilder.Build());
+				}
+
+				var defaultThreadCulture = CultureInfo.DefaultThreadCurrentCulture;
+				var defaultThreadUICulture = CultureInfo.DefaultThreadCurrentUICulture;
+
+				CultureInfo customCulture = new CultureInfo("en-US");
+				customCulture.NumberFormat.NumberDecimalSeparator = ".";
 
 				IErpService service = null;
 				try
@@ -56,9 +73,18 @@ namespace WebVella.Erp.Web
 					service.SetAutoMapperConfiguration();
 
 					//this should be called after plugin init
-					AutoMapper.Mapper.Initialize(cfg);
+					ErpAutoMapper.Initialize(cfg);
 
-					service.InitializeSystemEntities();
+					//we used en-US based culture settings for initialization and patch execution
+					{
+						CultureInfo.DefaultThreadCurrentCulture = customCulture;
+						CultureInfo.DefaultThreadCurrentUICulture = customCulture;
+
+						service.InitializeSystemEntities();
+
+						CultureInfo.DefaultThreadCurrentCulture = defaultThreadCulture;
+						CultureInfo.DefaultThreadCurrentUICulture = defaultThreadUICulture;
+					}
 
 					CheckCreateHomePage();
 
@@ -66,18 +92,29 @@ namespace WebVella.Erp.Web
 
 					ErpAppContext.Init(app.ApplicationServices);
 
-					//this is called after automapper setup
-					service.InitializePlugins(app.ApplicationServices);
+					{
+						//switch culture for patch executions and initializations
+						CultureInfo.DefaultThreadCurrentCulture = customCulture;
+						CultureInfo.DefaultThreadCurrentUICulture = customCulture;
+
+						//this is called after automapper setup
+						service.InitializePlugins(app.ApplicationServices);
+
+						CultureInfo.DefaultThreadCurrentCulture = defaultThreadCulture;
+						CultureInfo.DefaultThreadCurrentUICulture = defaultThreadUICulture;
+					}
 
 				}
 				finally
 				{
 					DbContext.CloseContext();
+					CultureInfo.DefaultThreadCurrentCulture = defaultThreadCulture;
+					CultureInfo.DefaultThreadCurrentUICulture = defaultThreadUICulture;
 				}
 
-				if (service != null)
-					service.StartBackgroundJobProcess();
-
+				//this is handled by background services now
+				//if (service != null)
+				//	service.StartBackgroundJobProcess();
 
 				return app;
 			}

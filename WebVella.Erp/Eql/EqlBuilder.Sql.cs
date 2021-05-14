@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,8 +11,8 @@ namespace WebVella.Erp.Eql
 {
 	public partial class EqlBuilder
 	{
-		private EntityManager entMan = new EntityManager();
-		private EntityRelationManager relMan = new EntityRelationManager();
+		private EntityManager entMan;
+		private EntityRelationManager relMan ;
 
 		private Entity fromEntity = null;
 
@@ -20,19 +21,20 @@ namespace WebVella.Erp.Eql
 		const string BEGIN_OUTER_SELECT = @"SELECT row_to_json( X ) FROM (";
 		const string BEGIN_SELECT = @"SELECT ";
 		const string REGULAR_FIELD_SELECT = @" {1}.""{0}"" AS ""{0}"",";
+		const string GEOGRAPHY_FIELD_SELECT = @" ST_As{2}({1}.""{0}"") AS ""{0}"",";
 		const string END_SELECT = @"";
 		const string BEGIN_SELECT_DISTINCT = @"SELECT DISTINCT ";
 		const string END_OUTER_SELECT = @") X";
 		const string FROM = @"FROM {0}";
 
 		const string OTM_RELATION_TEMPLATE =
-@"$$$TABS$$$(SELECT  COALESCE( array_to_json( array_agg( row_to_json(d) )), '[]') FROM ( 
-$$$TABS$$$ SELECT {1} 
+@"$$$TABS$$$(SELECT  COALESCE( array_to_json( array_agg( row_to_json(d) )), '[]') FROM (
+$$$TABS$$$ SELECT {1}
 $$$TABS$$$ FROM {2} {3}
 $$$TABS$$$ WHERE {3}.{4} = {5}.{6} ) d )::jsonb AS ""{0}"",";
 
 		const string MTM_RELATION_TEMPLATE =
-@"$$$TABS$$$(SELECT  COALESCE(  array_to_json(array_agg( row_to_json(d))), '[]') FROM ( 
+@"$$$TABS$$$(SELECT  COALESCE(  array_to_json(array_agg( row_to_json(d))), '[]') FROM (
 $$$TABS$$$ SELECT {1}
 $$$TABS$$$ FROM {2} {3}
 $$$TABS$$$ LEFT JOIN  {4} {5} ON {6}.{7} = {8}.{9}
@@ -293,6 +295,15 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 					fieldsMeta.Add(new EqlFieldMeta { Name = field.Name, Field = field });
 				if (rootInfo.Relation != null)
 					AppendToStringBuilder(sb, depth, true, string.Format(REGULAR_FIELD_SELECT, field.Name, rootInfo.Relation.Name));
+				else if (field.GetFieldType() == FieldType.GeographyField)
+				{
+					// 628426 6 Sep 2020, Geography Support
+					// returns either GeoJSON or Text
+					// intended to generate ST_AsGeoJson(...) or ST_AsText(...)
+					string format = (field as GeographyField).Format.ToString();
+
+					AppendToStringBuilder(sb, depth, true, string.Format(GEOGRAPHY_FIELD_SELECT, field.Name, $"{RECORD_COLLECTION_PREFIX}{rootInfo.Entity.Name}", format));
+				}
 				else
 					AppendToStringBuilder(sb, depth, true, string.Format(REGULAR_FIELD_SELECT, field.Name, $"{RECORD_COLLECTION_PREFIX}{rootInfo.Entity.Name}"));
 			}
@@ -300,12 +311,12 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 			//append total count column
 			if (depth == 1)
 				AppendToStringBuilder(sb, depth, true, " COUNT(*) OVER() AS ___total_count___,");
-			
+
 			bool trimed = false;
 			if (rootInfo.Children.Count == 0)
 			{
 				trimed = true;
-				sb.Remove(sb.Length - 3, 3); //remove newline and comma;
+				sb.Remove(sb.Length - (Environment.NewLine.Length + 1), Environment.NewLine.Length + 1); //remove newline and comma;
 			}
 
 			foreach (var info in rootInfo.Children)
@@ -314,7 +325,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 				if (fieldsMeta != null)
 					childFieldsMeta = new List<EqlFieldMeta>();
 
-				var fieldsSql = "\r\n" + BuildFieldsSql(info, depth + 1, childFieldsMeta);
+				var fieldsSql = Environment.NewLine + BuildFieldsSql(info, depth + 1, childFieldsMeta);
 
 				AppendToStringBuilder(sb, depth, true, $"------->: ${info.Relation.Name}");
 
@@ -492,11 +503,11 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 				if (info == rootInfo.Children.Last())
 				{
 					if (!trimed)
-						sb.Remove(sb.Length - 3, 3);
+						sb.Remove(sb.Length - (Environment.NewLine.Length + 1), Environment.NewLine.Length + 1); //remove newline and comma;
 				}
 
-				
-				if(!sb.ToString().EndsWith("\r\n"))
+
+				if(!sb.ToString().EndsWith(Environment.NewLine))
 					AppendToStringBuilder(sb, depth, true, "");
 
 				AppendToStringBuilder(sb, depth, true, $"-------< ${info.Relation.Name}");
@@ -567,6 +578,10 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 				case EqlNodeType.Keyword:
 					if (((EqlKeywordNode)operandNode).Keyword == "null")
 						operandString = $"NULL";
+					else if (((EqlKeywordNode)operandNode).Keyword == "true")
+						operandString = $"TRUE";
+					else if (((EqlKeywordNode)operandNode).Keyword == "false")
+						operandString = $"FALSE";
 					else
 						throw new EqlException($"WHERE CLAUSE: Unknown term '{((EqlKeywordNode)operandNode).Keyword}' used as keyword.");
 					break;
@@ -630,7 +645,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 						return $" ( {secondOperandString} IS NULL ) ";
 					if (secondOperandString == "NULL") //keyword NULL
 						return $" ( {firstOperandString} IS NULL ) ";
-					
+
 					if (firstOperandString.StartsWith("@")) //parameter
 					{
 						string paramName = firstOperandString;
@@ -682,12 +697,29 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 					if (firstOperandField != null)
 					{
 						if (firstOperandField.GetFieldType() == FieldType.MultiSelectField)
-							return $" ( {firstOperandString}  @>  {secondOperandString} ) ";
+						{
+							var result =  $" ( {firstOperandString}  @>  {secondOperandString} ) ";
+							string paramName = secondOperandString;
+							var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
+							if (param != null && param.Value != null )
+							{
+								//if parameter is not array or enumerable, we create new parameter 
+								//with array type
+								if (!typeof(IEnumerable).IsAssignableFrom(param.Value.GetType()) || param.Value.GetType() == typeof(string))
+								{
+									string newParamName = $"{secondOperandString}_converted_to_array";
+									var newParamValue = new List<string> { param.Value.ToString() };
+									Parameters.Add(new EqlParameter(newParamName, newParamValue));
+									result = $" ( {firstOperandString}  @>  {newParamName} ) ";
+								}
+							}
+							return result;
+						}
 						else
 						{
 							string paramName = secondOperandString;
 							var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
-							if (param == null) 	throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
+							if (param == null) throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
 							//param.Value = "%" + param.Value + "%";
 
 							return $" ( {firstOperandString}  ILIKE  CONCAT ( '%' , {secondOperandString} , '%' ) )";
@@ -703,7 +735,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 						if (param == null) throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
 						//param.Value = param.Value + "%";
 
-						return $" ( {firstOperandString}  ILIKE CONCAT ( '%' , {secondOperandString}  ) ) ";
+						return $" ( {firstOperandString}  ILIKE CONCAT ( {secondOperandString},'%'  ) ) ";
 					}
 					else
 						throw new EqlException($"WHERE: STARTSWITH first operand should be a field name.");
@@ -735,7 +767,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 							//coalesce(string_agg(tag.name, ' '))
 							if (singleWord)
 							{
-								param.Value = param.Value + ":*"; //search for all lexemes starting with this word 
+								param.Value = param.Value + ":*"; //search for all lexemes starting with this word
 								return $" to_tsvector( 'simple', {firstOperandString} ) @@ to_tsquery( 'simple', {paramName} ) ";
 							}
 							else
@@ -758,7 +790,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 
 							if (singleWord)
 							{
-								text = text + ":*"; //search for all lexemes starting with this word 
+								text = text + ":*"; //search for all lexemes starting with this word
 								return $" to_tsvector( 'simple', {firstOperandString} ) @@ to_tsquery( 'simple', '{text}') ";
 							}
 							else
@@ -894,7 +926,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 								 targetJoinAlias, /*.*/ "target_id", /* =  */
 								 targetJoinTable, /*.*/ relation.TargetFieldName);
 
-						relationJoinSql += "\r\n" + string.Format(FILTER_JOIN,
+						relationJoinSql += Environment.NewLine + string.Format(FILTER_JOIN,
 								/*LEFT OUTER JOIN*/ originJoinTable, /* */ originJoinAlias /*ON*/,
 								targetJoinAlias, /*.*/ "origin_id", /* =  */
 								originJoinAlias, /*.*/ relation.OriginFieldName);
@@ -909,7 +941,7 @@ LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
 								originJoinAlias, /*.*/ "origin_id", /* =  */
 								originJoinTable, /*.*/ relation.OriginFieldName);
 
-						relationJoinSql += "\r\n" + string.Format(FILTER_JOIN,
+						relationJoinSql += Environment.NewLine + string.Format(FILTER_JOIN,
 								  /*LEFT OUTER JOIN*/ targetJoinTable, /* */ targetJoinAlias /*ON*/,
 								originJoinAlias, /*.*/ "target_id", /* =  */
 								targetJoinAlias, /*.*/ relation.TargetFieldName);

@@ -1,15 +1,18 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
 @using WebVella.Erp.Api.Models;
+@using WebVella.TagHelpers.Models;
 @using WebVella.Erp.Web;
 @{
 	var options = (PcFieldHtml.PcFieldHtmlOptions)ViewBag.Options;
 	var fieldModel = (PcFieldHtml.PcFieldBaseModel)ViewBag.Model;
 	var erpRequest = (ErpRequestContext)ViewBag.RequestContext;
-	var uploadModeOptions = (List<SelectOption>)ViewBag.UploadModeOptions;
-	var toolbarModeOptions = (List<SelectOption>)ViewBag.ToolbarModeOptions;
+	var uploadModeOptions = (List<WvSelectOption>)ViewBag.UploadModeOptions;
+	var toolbarModeOptions = (List<WvSelectOption>)ViewBag.ToolbarModeOptions;
 }
 
 <wv-row>
@@ -49,12 +52,29 @@
 		<wv-field-select name="toolbar_mode" value="@((int)options.ToolbarMode)" label-text="Toolbar mode" options="@toolbarModeOptions" required="true"></wv-field-select>
 	</wv-column>
 </wv-row>
+
 <wv-section is-collapsable="true" is-collapsed="true" title="advanced options" class="mt-3">
 	<wv-row>
 		<wv-column span="4">
-			<wv-field-select name="connected_entity_id" value="@options.ConnectedEntityId" label-text="Connected Entity" options="@fieldModel.EntitySelectOptions"></wv-field-select>
+			<wv-field-select name="connected_entity_id" value="@options.ConnectedEntityId" label-text="Connected Entity" options="@fieldModel.EntitySelectOptions.ToWvSelectOption()"></wv-field-select>
 		</wv-column>
 		<wv-column span="4">
+			<wv-field-datasource name="connected_record_id_ds" value="@options.ConnectedRecordIdDs" label-text="Override the record Id" page-id="erpRequest.Page.Id" description="should be a valid GUID "></wv-field-datasource>
+		</wv-column>
+		<wv-column span="4">
+			<wv-field-datasource name="access_override_ds" value="@options.AccessOverrideDs" label-text="Field value access override" page-id="erpRequest.Page.Id" description="should return [FieldAccess] enum. If provided will override the standard entity field role access "></wv-field-datasource>
+		</wv-column>
+	</wv-row>
+	<wv-row>
+		<wv-column span="4">
+			<wv-field-datasource name="required_override_ds" value="@options.RequiredOverrideDs" label-text="Required override" page-id="erpRequest.Page.Id" description="empty or null - read entity meta"></wv-field-datasource>
+		</wv-column>
+		<wv-column span="4">
+			<wv-field-datasource name="ajax_api_url_ds" value="@options.AjaxApiUrlDs" label-text="Override the ajax API URL inline edit" page-id="erpRequest.Page.Id" description="should be a string. Formatted with {0} - entityName, {1} - recordId "></wv-field-datasource>
+		</wv-column>		
+	</wv-row>
+	<wv-row>
+		<wv-column span="12">
 			<div class="go-bkg-gray-light border p-2">
 				<span class="go-blue"><i class="fa fa-info-circle"></i> Note: </span>The platform will try getting the advanced field properties by mapping the field name to the selected entity field name. If "<strong>label</strong>" or "<strong>options</strong>" are specified above, they will be applied with priority. If no entity is selected, the system will use the page's entity, if any is found!
 			</div>

@@ -1,6 +1,8 @@
 ﻿@page "/sdk/objects/page/r/{RecordId}/{PageName?}"
 @using System.Web;
+@using WebVella.TagHelpers.Models;
 @model WebVella.Erp.Plugins.SDK.Pages.Page.DetailsModel
+@using WebVella.Erp.Web.Utils;
 @{
 	Layout = "~/Pages/_AppMaster.cshtml";
 	ViewData["Title"] = "Page details";
@@ -10,30 +12,16 @@
 	}
 }
 
-<script>
-	function DeletePage() {
-		if (confirm("Are you sure you want to delete the page?") == true) {
-			ErpEvent.DISPATCH("WebVella.Erp.Web.Components.PcForm", { htmlId: "DeletePageForm", action: "submit", payload: null });
-		}
-	}
-
-	function ClonePage() {
-		if (confirm("Are you sure you want to clone this page?") == true) {
-			ErpEvent.DISPATCH("WebVella.Erp.Web.Components.PcForm", { htmlId: "ClonePageForm", action: "submit", payload: null });
-		}
-	}
-</script>
-
 <wv-page-header color="#dc3545" area-label="Pages" title="@Model.ErpPage.Label" subtitle="Details"
 	icon-class="@pageIconClass" return-url="@Model.ReturnUrl">
 
 <wv-page-header-actions>
-	<button type='button' onclick='DeletePage()' class='btn btn-white btn-sm'><i class='fa fa-trash-alt go-red'></i> Delete Page</button>
+	<wv-button type='Submit' form="DeletePageForm" onclick='return confirm("Are you sure you want to delete the page?")' class='btn btn-white btn-sm'><i class='fa fa-trash-alt go-red'></i> Delete Page</wv-button>
 	@if (!String.IsNullOrWhiteSpace(Model.PagePublicUrl))
 	{
 	<a href='@Model.PagePublicUrl' target="_blank" class='btn btn-white btn-sm'><i class='fas fa-external-link-alt'></i> Visit Page</a>
 	}
-	<button type='button' onclick='ClonePage()' class='btn btn-white btn-sm'><i class='fa fa-file go-gray'></i> Clone Page</button>
+	<wv-button type='Submit' form="ClonePageForm" onclick="return confirm('Are you sure you want to clone this page?')" class='btn btn-white btn-sm'><i class='fa fa-file go-gray'></i> Clone Page</wv-button>
 	<a href='/sdk/objects/page/m/@(Model.ErpPage != null ? Model.ErpPage.Id : Guid.Empty)/manage?returnUrl=@Html.Raw(HttpUtility.UrlEncode(Model.CurrentUrl))' class='btn btn-white btn-sm'><i class='fa fa-cog go-orange'></i> Manage Details</a>
 </wv-page-header-actions>
 
@@ -58,7 +46,7 @@
 		</wv-row>
 		<wv-row>
 			<wv-column span="6">
-				<wv-field-text label-text="Icon CSS Class" value="@Model.IconClass" name="IconClass"></wv-field-text>
+				<wv-field-icon label-text="Icon CSS Class" value="@Model.IconClass" name="IconClass"></wv-field-icon>
 			</wv-column>
 			<wv-column span="6">
 				<wv-field-number label-text="Weight" decimal-digits="0" value="@Model.Weight" name="Weight"></wv-field-number>
@@ -71,7 +59,7 @@
 			<wv-column span="6">
 				@if (Model.Access.Count > 0)
 				{
-					<wv-field-multiselect label-text="Access (inherited from application)" value="@Model.Access" name="Access" options="Model.RoleOptions"></wv-field-multiselect>
+					<wv-field-multiselect label-text="Access (inherited from application)" value="@Model.Access" name="Access" options="Model.RoleOptions.ToWvSelectOption()"></wv-field-multiselect>
 				}
 				else
 				{
@@ -86,7 +74,7 @@
 		</wv-row>
 	</wv-section>
 	<wv-section class="mt-4" title="Sitemap" is-card="true">
-		@await Component.InvokeAsync("WvSdkPageSitemap", new { pageId = Model.RecordId, mode = FieldRenderMode.Display})
+		@await Component.InvokeAsync("WvSdkPageSitemap", new { pageId = Model.RecordId, mode = WvFieldRenderMode.Display})
 	</wv-section>
 </wv-form>
 

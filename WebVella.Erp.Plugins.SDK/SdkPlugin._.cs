@@ -106,10 +106,54 @@ namespace WebVella.Erp.Plugins.SDK
 							}
 						}
 
-						#endregion
+						if (currentPluginSettings.Version < 20200610)
+						{
+							try
+							{
+								currentPluginSettings.Version = 20200610;
+								Patch20200610(entMan, relMan, recMan);
+							}
+							catch (Exception ex)
+							{
+								var exception = ex;
+								throw ex;
+							}
+						}
 
 
-						SavePluginData(JsonConvert.SerializeObject(currentPluginSettings));
+                        if (currentPluginSettings.Version < 20201221)
+                        {
+                            try
+                            {
+                                currentPluginSettings.Version = 20201221;
+                                Patch20201221(entMan, relMan, recMan);
+                            }
+                            catch (Exception ex)
+                            {
+                                var exception = ex;
+                                throw ex;
+                            }
+                        }
+
+                        if (currentPluginSettings.Version < 20210429)
+                        {
+                            try
+                            {
+                                currentPluginSettings.Version = 20210429;
+                                Patch20210429(entMan, relMan, recMan);
+                            }
+                            catch (Exception ex)
+                            {
+                                var exception = ex;
+                                throw ex;
+                            }
+                        }
+
+
+                        #endregion
+
+
+                        SavePluginData(JsonConvert.SerializeObject(currentPluginSettings));
 
 						connection.CommitTransaction();
 						//connection.RollbackTransaction();

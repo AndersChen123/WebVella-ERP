@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using WebVella.Erp.Api.Models;
+using WebVella.Erp.Database;
 
 namespace WebVella.Erp.Eql
 {
@@ -23,13 +24,33 @@ namespace WebVella.Erp.Eql
 		/// </summary>
 		public List<string> ExpectedParameters { get; private set; } = new List<string>();
 
+		private DbContext suppliedContext = null;
+		public DbContext CurrentContext
+		{
+			get
+			{
+				if (suppliedContext != null)
+					return suppliedContext;
+				else
+					return DbContext.Current;
+			}
+			set
+			{
+				suppliedContext = value;
+			}
+		}
+
 		/// <summary>
 		/// Creates EqlBuilder object
 		/// </summary>
 		/// <param name="text"></param>
-		public EqlBuilder(string text)
+		public EqlBuilder(string text, DbContext currentContext = null)
 		{
+			if (currentContext != null)
+				suppliedContext = currentContext;
 			Text = text;
+			entMan = new Api.EntityManager(CurrentContext);
+			relMan = new Api.EntityRelationManager(CurrentContext);
 		}
 
 		/// <summary>
@@ -83,7 +104,7 @@ namespace WebVella.Erp.Eql
 		{
 			if (string.IsNullOrWhiteSpace(source))
 				throw new EqlException("Source is empty.");
-			
+
 			if (errors == null)
 				errors = new List<EqlError>();
 
@@ -388,6 +409,10 @@ namespace WebVella.Erp.Eql
 						return new EqlTextValueNode { Text = parseTreeNode.ChildNodes[0].Token.ValueString };
 					case "null":
 						return new EqlKeywordNode { Keyword = "null" };
+					case "true":
+						return new EqlKeywordNode { Keyword = "true" };
+					case "false":
+						return new EqlKeywordNode { Keyword = "false" };
 					case "expression_list":
 						return BuildBinaryExpressionNode(parseTreeNode.ChildNodes[0].ChildNodes[0]);
 					default:

@@ -4,13 +4,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Text.RegularExpressions;
-using System.Threading;
-using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
 using WebVella.Erp.Database;
-using WebVella.Erp.Storage;
+using WebVella.Erp.Exceptions;
 using WebVella.Erp.Utilities;
 using WebVella.Erp.Utilities.Dynamic;
 
@@ -18,8 +15,24 @@ namespace WebVella.Erp.Api
 {
 	public class EntityManager
 	{
-		public EntityManager()
+		internal static object lockObj = new object();
+
+		private DbContext suppliedContext = null;
+		private DbContext CurrentContext
 		{
+			get
+			{
+				if (suppliedContext != null)
+					return suppliedContext;
+				else
+					return DbContext.Current;
+			}
+		}
+
+		public EntityManager(DbContext currentContext = null)
+		{
+			if (currentContext != null)
+				suppliedContext = currentContext;
 		}
 
 		#region << Validation methods >>
@@ -52,6 +65,10 @@ namespace WebVella.Erp.Api
 
 			if (!string.IsNullOrWhiteSpace(entity.Name))
 			{
+				//Postgres column name width limit
+				if (entity.Name.Length > 63)
+					errorList.Add(new ErrorModel("name", entity.Name, "Entity name length exceeded. Should be up to 63 chars!"));
+
 				Entity verifiedEntity = ReadEntity(entity.Name).Object;
 
 				if (verifiedEntity != null && verifiedEntity.Id != entity.Id)
@@ -105,6 +122,10 @@ namespace WebVella.Erp.Api
 				{
 					primaryFieldCount++;
 				}
+
+				//Postgres column name width limit
+				if (field.Name.Length > 63)
+					errorList.Add(new ErrorModel("name", field.Name, "Field name length exceeded. Should be up to 63 chars!"));
 			}
 
 			if (primaryFieldCount < 1)
@@ -181,6 +202,11 @@ namespace WebVella.Erp.Api
 
 				if (!((InputDateField)field).UseCurrentTimeAsDefaultValue.HasValue)
 					((InputDateField)field).UseCurrentTimeAsDefaultValue = false;
+
+				if ((((InputDateField)field).Required.HasValue && ((InputDateField)field).Required.Value) &&
+				(!((InputDateField)field).UseCurrentTimeAsDefaultValue.HasValue || !((InputDateField)field).UseCurrentTimeAsDefaultValue.Value) &&
+				((InputDateField)field).DefaultValue == null)
+					errorList.Add(new ErrorModel("defaultValue", null, "Default Value is required when the field is marked as required and generate new id option is not selected!"));
 				//errorList.Add(new ErrorModel("useCurrentTimeAsDefaultValue", null, "Use current Time is required!"));
 			}
 			else if (field is InputDateTimeField)
@@ -192,6 +218,11 @@ namespace WebVella.Erp.Api
 
 				if (!((InputDateTimeField)field).UseCurrentTimeAsDefaultValue.HasValue)
 					((InputDateTimeField)field).UseCurrentTimeAsDefaultValue = false;
+
+				if ((((InputDateTimeField)field).Required.HasValue && ((InputDateTimeField)field).Required.Value) &&
+				(!((InputDateTimeField)field).UseCurrentTimeAsDefaultValue.HasValue || !((InputDateTimeField)field).UseCurrentTimeAsDefaultValue.Value) &&
+				((InputDateTimeField)field).DefaultValue == null)
+					errorList.Add(new ErrorModel("defaultValue", null, "Default Value is required when the field is marked as required and generate new id option is not selected!"));
 				//errorList.Add(new ErrorModel("useCurrentTimeAsDefaultValue", null, "Use current Time is required!"));
 			}
 			else if (field is InputEmailField)
@@ -219,10 +250,16 @@ namespace WebVella.Erp.Api
 			//    if (!((FormulaField)field).DecimalPlaces.HasValue)
 			//        errorList.Add(new ErrorModel("fields.decimalPlaces", null, "Decimal Places is required!"));
 			//}
+			else if (field is InputGeographyField)
+			{
+				if (field.Required.HasValue && field.Required.Value && ((InputGeographyField)field).DefaultValue == null)
+					errorList.Add(new ErrorModel("defaultValue", null, "Default Value is required!"));
+
+			}
 			else if (field is InputGuidField)
 			{
 				if ((((InputGuidField)field).Unique.HasValue && ((InputGuidField)field).Unique.Value) &&
-				   (!((InputGuidField)field).GenerateNewId.HasValue || !((InputGuidField)field).GenerateNewId.Value))
+					(!((InputGuidField)field).GenerateNewId.HasValue || !((InputGuidField)field).GenerateNewId.Value))
 					errorList.Add(new ErrorModel("defaultValue", null, "Generate New Id is required when the field is marked as unique!"));
 
 				if ((((InputGuidField)field).Required.HasValue && ((InputGuidField)field).Required.Value) &&
@@ -264,6 +301,19 @@ namespace WebVella.Erp.Api
 				{
 					if (((InputMultiSelectField)field).Options.Count == 0)
 						errorList.Add(new ErrorModel("options", null, "Options must contains at least one item!"));
+
+					//Check if all values are unique
+					var fieldValueHS = new HashSet<string>();
+					foreach (var option in ((InputMultiSelectField)field).Options)
+					{
+						if (fieldValueHS.Contains(option.Value))
+						{
+							errorList.Add(new ErrorModel("options", null, "There are duplicated option values!"));
+							break;
+						}
+						else
+							fieldValueHS.Add(option.Value);
+					}
 				}
 				else
 					errorList.Add(new ErrorModel("options", null, "Options is required!"));
@@ -340,6 +390,19 @@ namespace WebVella.Erp.Api
 				{
 					if (((InputSelectField)field).Options.Count == 0)
 						errorList.Add(new ErrorModel("options", null, "Options must contains at least one item!"));
+
+					//Check if all values are unique
+					var fieldValueHS = new HashSet<string>();
+					foreach (var option in ((InputSelectField)field).Options)
+					{
+						if (fieldValueHS.Contains(option.Value))
+						{
+							errorList.Add(new ErrorModel("options", null, "There are duplicated option values!"));
+							break;
+						}
+						else
+							fieldValueHS.Add(option.Value);
+					}
 				}
 				else
 					errorList.Add(new ErrorModel("options", null, "Options is required!"));
@@ -375,6 +438,11 @@ namespace WebVella.Erp.Api
 
 		public EntityResponse CreateEntity(InputEntity inputEntity, Dictionary<string, Guid> sysIdDictionary = null, bool createOnlyIdField = true)
 		{
+			if (!string.IsNullOrWhiteSpace(inputEntity.Name))
+			{
+				inputEntity.Name = inputEntity.Name.Trim();
+			}
+
 			EntityResponse response = new EntityResponse
 			{
 				Success = true,
@@ -416,7 +484,7 @@ namespace WebVella.Erp.Api
 
 
 				DbEntity storageEntity = entity.MapTo<DbEntity>();
-				bool result = DbContext.Current.EntityRepository.Create(storageEntity, sysIdDictionary, createOnlyIdField);
+				bool result = CurrentContext.EntityRepository.Create(storageEntity, sysIdDictionary, createOnlyIdField);
 				if (!result)
 				{
 					response.Timestamp = DateTime.UtcNow;
@@ -430,8 +498,8 @@ namespace WebVella.Erp.Api
 				response.Success = false;
 				response.Object = entity;
 				response.Timestamp = DateTime.UtcNow;
-			
-				if( ErpSettings.DevelopmentMode )
+
+				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
 					response.Message = "The entity was not created. An internal error occurred!";
@@ -439,7 +507,7 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Cache.Clear();
 
 			var createdEntityResponse = ReadEntity(entity.Id);
 			response.Object = createdEntityResponse.Object;
@@ -513,11 +581,11 @@ namespace WebVella.Erp.Api
 				storageEntity.RecordPermissions.CanUpdate = entity.RecordPermissions.CanUpdate;
 				storageEntity.RecordPermissions.CanDelete = entity.RecordPermissions.CanDelete;
 
-				bool result = DbContext.Current.EntityRepository.Update(storageEntity.MapTo<DbEntity>());
+				bool result = CurrentContext.EntityRepository.Update(storageEntity.MapTo<DbEntity>());
 
 				if (!result)
 				{
-					Cache.ClearEntities();
+					Cache.Clear();
 					response.Timestamp = DateTime.UtcNow;
 					response.Success = false;
 					response.Message = "The entity was not updated! An internal error occurred!";
@@ -527,7 +595,7 @@ namespace WebVella.Erp.Api
 			}
 			catch (Exception e)
 			{
-				Cache.ClearEntities();
+				Cache.Clear();
 				response.Success = false;
 				response.Object = entity;
 				response.Timestamp = DateTime.UtcNow;
@@ -538,7 +606,7 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Cache.Clear();
 
 			var updatedEntityResponse = ReadEntity(entity.Id);
 			response.Object = updatedEntityResponse.Object;
@@ -588,11 +656,11 @@ namespace WebVella.Erp.Api
 				}
 
 				//entity, entity records and relations are deleted in storage repository 
-				DbContext.Current.EntityRepository.Delete(id);
+				CurrentContext.EntityRepository.Delete(id);
 			}
 			catch (Exception e)
 			{
-				Cache.ClearEntities();
+				Cache.Clear();
 
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
@@ -605,7 +673,7 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Cache.Clear();
 
 			response.Timestamp = DateTime.UtcNow;
 			return response;
@@ -630,49 +698,52 @@ namespace WebVella.Erp.Api
 
 			try
 			{
-				List<DbEntity> storageEntityList = DbContext.Current.EntityRepository.Read();
-				entities = storageEntityList.MapTo<Entity>();
-
-				List<EntityRelation> relationList = new EntityRelationManager().Read(storageEntityList).Object;
-
-
-				//EntityRelationManager relationManager = new EntityRelationManager(Storage);
-				//EntityRelationListResponse relationListResponse = relationManager.Read();
-				//if (relationListResponse.Object != null)
-				//	relationList = relationListResponse.Object;
-
-
-				//TODO RUMEN - the unique key for finding fields, lists, views should be not only fieldId for example, but the fieldId+entityId combination. 
-				//The problem occurs when there are two fields in two different entities with the same id.Same applies for view and list.
-				List<Field> fields = new List<Field>();
-
-				foreach (var entity in entities)
-					fields.AddRange(entity.Fields);
-
-				foreach (var entity in entities)
+				lock (lockObj)
 				{
-					#region Process Fields
+					List<DbEntity> storageEntityList = CurrentContext.EntityRepository.Read();
+					entities = storageEntityList.MapTo<Entity>();
 
-					foreach (var field in entity.Fields)
+					List<EntityRelation> relationList = new EntityRelationManager(CurrentContext).Read(storageEntityList).Object;
+
+
+					//EntityRelationManager relationManager = new EntityRelationManager(Storage);
+					//EntityRelationListResponse relationListResponse = relationManager.Read();
+					//if (relationListResponse.Object != null)
+					//	relationList = relationListResponse.Object;
+
+
+					//TODO RUMEN - the unique key for finding fields, lists, views should be not only fieldId for example, but the fieldId+entityId combination. 
+					//The problem occurs when there are two fields in two different entities with the same id.Same applies for view and list.
+					List<Field> fields = new List<Field>();
+
+					foreach (var entity in entities)
+						fields.AddRange(entity.Fields);
+
+					foreach (var entity in entities)
 					{
-						field.EntityName = entity.Name;
+						#region Process Fields
+
+						foreach (var field in entity.Fields)
+						{
+							field.EntityName = entity.Name;
+						}
+
+						#endregion
+
+						//compute hash code
+						entity.Hash = CryptoUtility.ComputeOddMD5Hash(JsonConvert.SerializeObject(entity));
 					}
 
-					#endregion
-
-					//compute hash code
-					entity.Hash = CryptoUtility.ComputeOddMD5Hash(JsonConvert.SerializeObject(entity));
+					Cache.AddEntities(entities);
+					response.Object = entities;
+					response.Hash = Cache.GetEntitiesHash();
 				}
-
-				Cache.AddEntities(entities);
-				response.Object = entities;
-				response.Hash = Cache.GetEntitiesHash();
 			}
 			catch (Exception e)
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -712,7 +783,7 @@ namespace WebVella.Erp.Api
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -752,7 +823,7 @@ namespace WebVella.Erp.Api
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -766,12 +837,96 @@ namespace WebVella.Erp.Api
 			return response;
 		}
 
+		public EntityResponse CloneEntity(Guid entityToCloneId, InputEntity inputEntity)
+		{
+			Guid entityId = Guid.NewGuid();
+			if (inputEntity.Id == null || inputEntity.Id == Guid.Empty)
+				inputEntity.Id = entityId;
+
+			EntityResponse response = new EntityResponse { Success = true, Message = "The entity was successfully cloned!", };
+			using (DbConnection connection = CurrentContext.CreateConnection())
+			{
+				try
+				{
+					connection.BeginTransaction();
+
+					var entityToClone = ReadEntity(entityToCloneId).Object;
+					EntityResponse createResponse = CreateEntity(inputEntity);
+					if (!createResponse.Success)
+					{
+						connection.RollbackTransaction();
+						return createResponse;
+					}
+
+					var entity = createResponse.Object;
+
+					foreach (var field in entityToClone.Fields)
+					{
+						if (field.Name == "id")
+							continue;
+
+						var inputField = field.MapTo<InputField>();
+						inputField.Id = Guid.NewGuid();
+						var fieldResponse = CreateField(entity.Id, inputField, true);
+						if (!fieldResponse.Success)
+						{
+							connection.RollbackTransaction();
+							response.Errors = fieldResponse.Errors;
+							response.Success = false;
+							response.Object = inputEntity.MapTo<Entity>();
+							response.Timestamp = DateTime.UtcNow;
+							response.Message = fieldResponse.Message;
+							return response;
+						}
+					}
+
+					connection.CommitTransaction();
+				}
+				catch (ValidationException valEx)
+				{
+					connection.RollbackTransaction();
+
+					response.Success = false;
+					response.Object = inputEntity.MapTo<Entity>();
+					response.Timestamp = DateTime.UtcNow;
+					response.Message = valEx.Message;
+					response.Errors = valEx.Errors.MapTo<ErrorModel>();
+					return response;
+				}
+				catch (Exception e)
+				{
+					connection.RollbackTransaction();
+
+					response.Success = false;
+					response.Object = inputEntity.MapTo<Entity>();
+					response.Timestamp = DateTime.UtcNow;
+
+					if (ErpSettings.DevelopmentMode)
+						response.Message = e.Message + e.StackTrace;
+					else
+						response.Message = "The entity was not created. An internal error occurred!";
+
+					return response;
+				}
+			}
+
+			var createdEntityResponse = ReadEntity(inputEntity.Id.Value);
+			response.Object = createdEntityResponse.Object;
+			response.Timestamp = DateTime.UtcNow;
+
+			return response;
+		}
+
 		#endregion
 
 		#region << Field methods >>
 
 		public FieldResponse CreateField(Guid entityId, InputField inputField, bool transactional = true)
 		{
+			if (!string.IsNullOrWhiteSpace(inputField.Name))
+			{
+				inputField.Name = inputField.Name.Trim();
+			}
 			FieldResponse response = new FieldResponse
 			{
 				Success = true,
@@ -830,13 +985,13 @@ namespace WebVella.Erp.Api
 
 				DbEntity editedEntity = entity.MapTo<DbEntity>();
 
-				using (DbConnection con = DbContext.Current.CreateConnection())
+				using (DbConnection con = CurrentContext.CreateConnection())
 				{
 					con.BeginTransaction();
 
 					try
 					{
-						bool result = DbContext.Current.EntityRepository.Update(editedEntity);
+						bool result = CurrentContext.EntityRepository.Update(editedEntity);
 						if (!result)
 						{
 							response.Timestamp = DateTime.UtcNow;
@@ -845,13 +1000,14 @@ namespace WebVella.Erp.Api
 							return response;
 						}
 
-						DbContext.Current.RecordRepository.CreateRecordField(entity.Name, field);
+						CurrentContext.RecordRepository.CreateRecordField(entity.Name, field);
 
 						con.CommitTransaction();
 					}
 					catch
 					{
 						con.RollbackTransaction();
+						Cache.Clear();
 						throw;
 					}
 				}
@@ -859,7 +1015,8 @@ namespace WebVella.Erp.Api
 			}
 			catch (Exception e)
 			{
-				Cache.ClearEntities();
+				Debug.WriteLine($"Error while creating field (before clear cache): {field.Name} for entity '{entityId}'");
+				Cache.Clear();
 
 				response.Success = false;
 				response.Object = field;
@@ -873,7 +1030,8 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Debug.WriteLine($"Creating field success (before clear cache): {field.Name} for entity '{entityId}'");
+			Cache.Clear();
 
 			response.Object = field;
 			response.Timestamp = DateTime.UtcNow;
@@ -890,6 +1048,11 @@ namespace WebVella.Erp.Api
 
 			if (data == null)
 				data = new Expando();
+
+			if (!string.IsNullOrWhiteSpace(name))
+			{
+				name = name.Trim();
+			}
 
 			switch (type)
 			{
@@ -988,6 +1151,19 @@ namespace WebVella.Erp.Api
 						((MultiLineTextField)field).MaxLength = (int?)data["maxLength"];
 					if (HasKey(data, "visibleLineNumber") && data["visibleLineNumber"] != null)
 						((MultiLineTextField)field).VisibleLineNumber = (int?)data["visibleLineNumber"];
+					break;
+				case FieldType.GeographyField:
+					field = new GeographyField();
+					if (HasKey(data, "defaultValue") && data["defaultValue"] != null)
+						((GeographyField)field).DefaultValue = (string)data["defaultValue"];
+					if (HasKey(data, "maxLength") && data["maxLength"] != null)
+						((GeographyField)field).MaxLength = (int?)data["maxLength"];
+					if (HasKey(data, "visibleLineNumber") && data["visibleLineNumber"] != null)
+						((GeographyField)field).VisibleLineNumber = (int?)data["visibleLineNumber"];
+					if (HasKey(data, "format") && data["format"] != null)
+						((GeographyField)field).Format = (GeographyFieldFormat)data["format"];
+					if (HasKey(data, "srid") && data["srid"] != null)
+						((GeographyField)field).SRID = (int)data["srid"];
 					break;
 				case FieldType.MultiSelectField:
 					field = new MultiSelectField();
@@ -1146,6 +1322,19 @@ namespace WebVella.Erp.Api
 
 				field = inputField.MapTo<Field>();
 
+				if( field.GetFieldType() == FieldType.DateTimeField  )
+				{
+					var dateTimeField = (DateTimeField)field;
+					if (dateTimeField.UseCurrentTimeAsDefaultValue.HasValue && dateTimeField.UseCurrentTimeAsDefaultValue.Value)
+						dateTimeField.DefaultValue = null;
+				}
+				if (field.GetFieldType() == FieldType.DateField)
+				{
+					var dateField = (DateField)field;
+					if (dateField.UseCurrentTimeAsDefaultValue.HasValue && dateField.UseCurrentTimeAsDefaultValue.Value)
+						dateField.DefaultValue = null;
+				}
+
 				if (response.Errors.Count > 0)
 				{
 					response.Object = field;
@@ -1161,13 +1350,13 @@ namespace WebVella.Erp.Api
 
 				entity.Fields.Add(field);
 
-				DbContext.Current.RecordRepository.UpdateRecordField(entity.Name, field);
+				CurrentContext.RecordRepository.UpdateRecordField(entity.Name, field);
 
 				DbEntity updatedEntity = entity.MapTo<DbEntity>();
-				bool result = DbContext.Current.EntityRepository.Update(updatedEntity);
+				bool result = CurrentContext.EntityRepository.Update(updatedEntity);
 				if (!result)
 				{
-					Cache.ClearEntities();
+					Cache.Clear();
 					response.Timestamp = DateTime.UtcNow;
 					response.Success = false;
 					response.Message = "The field was not updated! An internal error occurred!";
@@ -1177,7 +1366,7 @@ namespace WebVella.Erp.Api
 			}
 			catch (Exception e)
 			{
-				Cache.ClearEntities();
+				Cache.Clear();
 				response.Success = false;
 				response.Object = field;
 				response.Timestamp = DateTime.UtcNow;
@@ -1190,7 +1379,7 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Cache.Clear();
 
 			response.Object = field;
 			response.Timestamp = DateTime.UtcNow;
@@ -1254,7 +1443,7 @@ namespace WebVella.Erp.Api
 				var validationErrors = new List<ErrorModel>();
 
 				//Check relations
-				var relations = new EntityRelationManager().Read().Object;
+				var relations = new EntityRelationManager(CurrentContext).Read().Object;
 
 				foreach (var relation in relations)
 				{
@@ -1288,15 +1477,15 @@ namespace WebVella.Erp.Api
 
 				entity.Fields.Remove(field);
 
-				using (DbConnection con = DbContext.Current.CreateConnection())
+				using (DbConnection con = CurrentContext.CreateConnection())
 				{
 					con.BeginTransaction();
 					try
 					{
-						DbContext.Current.RecordRepository.RemoveRecordField(entity.Name, field);
+						CurrentContext.RecordRepository.RemoveRecordField(entity.Name, field);
 
 						DbEntity updatedEntity = entity.MapTo<DbEntity>();
-						bool result = DbContext.Current.EntityRepository.Update(updatedEntity);
+						bool result = CurrentContext.EntityRepository.Update(updatedEntity);
 						if (!result)
 						{
 							response.Timestamp = DateTime.UtcNow;
@@ -1316,10 +1505,10 @@ namespace WebVella.Erp.Api
 			}
 			catch (Exception e)
 			{
-				Cache.ClearEntities();
+				Cache.Clear();
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -1328,7 +1517,7 @@ namespace WebVella.Erp.Api
 				return response;
 			}
 
-			Cache.ClearEntities();
+			Cache.Clear();
 
 			response.Timestamp = DateTime.UtcNow;
 			return response;
@@ -1371,7 +1560,7 @@ namespace WebVella.Erp.Api
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -1425,7 +1614,7 @@ namespace WebVella.Erp.Api
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else
@@ -1483,7 +1672,7 @@ namespace WebVella.Erp.Api
 			{
 				response.Timestamp = DateTime.UtcNow;
 				response.Success = false;
-				
+
 				if (ErpSettings.DevelopmentMode)
 					response.Message = e.Message + e.StackTrace;
 				else

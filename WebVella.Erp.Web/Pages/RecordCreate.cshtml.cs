@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
 using System.Collections.Generic;
@@ -16,7 +15,6 @@ using WebVella.Erp.Web.Services;
 
 namespace WebVella.Erp.Web.Pages.Application
 {
-	[Authorize]
 	public class RecordCreatePageModel : BaseErpPageModel
 	{
 		public RecordCreatePageModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
@@ -73,57 +71,58 @@ namespace WebVella.Erp.Web.Pages.Application
 					if (result != null) return result;
 				}
 
-				//record submission validates required fields and auto number - these fields are validated in recordmanager
-				//ValidateRecordSubmission(PostObject, ErpRequestContext.Entity, Validation);
-				if (Validation.Errors.Count == 0)
+
+				if (!PostObject.Properties.ContainsKey("id"))
+					PostObject["id"] = Guid.NewGuid();
+
+				var hookInstances = HookManager.GetHookedInstances<IRecordCreatePageHook>(HookKey);
+
+				//pre create hooks
+				foreach (IRecordCreatePageHook inst in hookInstances)
 				{
-
-					if (!PostObject.Properties.ContainsKey("id"))
-						PostObject["id"] = Guid.NewGuid();
-
-					var hookInstances = HookManager.GetHookedInstances<IRecordCreatePageHook>(HookKey);
-
-					//pre create hooks
-					foreach (IRecordCreatePageHook inst in hookInstances)
+					List<ValidationError> errors = new List<ValidationError>();
+					var result = inst.OnPreCreateRecord(PostObject, ErpRequestContext.Entity, this, errors);
+					if (result != null) return result;
+					if (errors.Any())
 					{
-						List<ValidationError> errors = new List<ValidationError>();
-						var result = inst.OnPreCreateRecord(PostObject, ErpRequestContext.Entity, this, errors);
-						if (result != null) return result;
-						if (errors.Any())
-						{
-							Validation.Errors.AddRange(errors);
-							BeforeRender();
-							return Page();
-						}
-					}
-
-					var createResponse = new RecordManager().CreateRecord(ErpRequestContext.Entity.MapTo<Entity>(), PostObject);
-					if (!createResponse.Success)
-					{
-						Validation.Message = createResponse.Message;
-						foreach (var error in createResponse.Errors)
-							Validation.Errors.Add(new ValidationError(error.Key, error.Message));
-
-						ErpRequestContext.PageContext = PageContext;
+						Validation.Errors.AddRange(errors);
 						BeforeRender();
 						return Page();
 					}
-
-					//post create hook
-					foreach (IRecordCreatePageHook inst in hookInstances)
-					{
-						var result = inst.OnPostCreateRecord(PostObject, ErpRequestContext.Entity, this);
-						if (result != null) return result;
-					}
-
-					if (string.IsNullOrWhiteSpace(ReturnUrl))
-						return Redirect($"/{ErpRequestContext.App.Name}/{ErpRequestContext.SitemapArea.Name}/{ErpRequestContext.SitemapNode.Name}/r/{createResponse.Object.Data[0]["id"]}");
-					else
-						return Redirect(ReturnUrl);
 				}
 
-				BeforeRender();
-				return Page();
+				//record submission validates required fields and auto number - these fields are validated in recordmanager
+				ValidateRecordSubmission(PostObject, ErpRequestContext.Entity, Validation);
+				if (Validation.Errors.Any())
+				{
+					BeforeRender();
+					return Page();
+				}
+
+				var createResponse = new RecordManager().CreateRecord(ErpRequestContext.Entity.MapTo<Entity>(), PostObject);
+				if (!createResponse.Success)
+				{
+					Validation.Message = createResponse.Message;
+					foreach (var error in createResponse.Errors)
+						Validation.Errors.Add(new ValidationError(error.Key, error.Message));
+
+					ErpRequestContext.PageContext = PageContext;
+					BeforeRender();
+					return Page();
+				}
+
+				//post create hook
+				foreach (IRecordCreatePageHook inst in hookInstances)
+				{
+					var result = inst.OnPostCreateRecord(PostObject, ErpRequestContext.Entity, this);
+					if (result != null) return result;
+				}
+
+				if (string.IsNullOrWhiteSpace(ReturnUrl))
+					return Redirect($"/{ErpRequestContext.App.Name}/{ErpRequestContext.SitemapArea.Name}/{ErpRequestContext.SitemapNode.Name}/r/{createResponse.Object.Data[0]["id"]}");
+				else
+					return Redirect(ReturnUrl);
+
 			}
 			catch (ValidationException valEx)
 			{

@@ -9,6 +9,7 @@ using WebVella.Erp.Exceptions;
 using WebVella.Erp.Plugins.SDK.Services;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.Tools
 {
@@ -16,11 +17,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Tools
 	{
 		public CodeGenModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>() { 
-			new GridColumn() { Label = "Element", Name = "", Width = "1%" },
-			new GridColumn() { Label = "Change", Name = "", Width = "1%" },
-			new GridColumn() { Label = "Name", Name = "", Width = "1%" },
-			new GridColumn() { Label = "description", Name = "", Width = "90%" }
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>() { 
+			new WvGridColumnMeta() { Label = "Element", Name = "", Width = "1%" },
+			new WvGridColumnMeta() { Label = "Change", Name = "", Width = "1%" },
+			new WvGridColumnMeta() { Label = "Name", Name = "", Width = "1%" },
+			new WvGridColumnMeta() { Label = "description", Name = "", Width = "90%" }
 		};
 
 		public List<MetaChangeModel> Changes { get; set; } = new List<MetaChangeModel>();
@@ -49,13 +50,28 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Tools
 
 		public List<SelectOption> EntitySelectOptions { get; set; } = new List<SelectOption>();
 
+		[BindProperty]
+		public List<string> IncludeNNRelationIdList { get; set; } = new List<string>();
+
+		public List<SelectOption> NNRelationsSelectOptions { get; set; } = new List<SelectOption>();
+
 		private void InitEntitySelectOptions()
 		{
-			var entities = new EntityManager().ReadEntities().Object;
-			entities = entities.OrderBy(x => x.Name).ToList();
-			foreach (var entity in entities)
 			{
-				EntitySelectOptions.Add(new SelectOption(entity.Id.ToString(), entity.Name));
+				var entities = new EntityManager().ReadEntities().Object;
+				entities = entities.OrderBy(x => x.Name).ToList();
+				foreach (var entity in entities)
+				{
+					EntitySelectOptions.Add(new SelectOption(entity.Id.ToString(), entity.Name));
+				}
+			}
+			{
+				var relations = new EntityRelationManager().Read().Object;
+				relations = relations.FindAll(x=> x.RelationType == EntityRelationType.ManyToMany).OrderBy(x => x.Name).ToList();
+				foreach (var relation in relations)
+				{
+					NNRelationsSelectOptions.Add(new SelectOption(relation.Id.ToString(), relation.Name));
+				}
 			}
 		}
 
@@ -100,7 +116,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Tools
 				}	
 				
 				var cgService = new CodeGenService();
-				var result = cgService.EvaluateMetaChanges(conString, IncludeRecordsEntityIdList, IncludeEntityMeta, IncludeEntityRelations, IncludeUserRoles, IncludeApplications);
+				var result = cgService.EvaluateMetaChanges(conString, IncludeRecordsEntityIdList, IncludeEntityMeta, IncludeEntityRelations, IncludeUserRoles, IncludeApplications, IncludeNNRelationIdList);
 				Code = result.Code;
 				Changes = result.Changes;
 				ShowResults = true;

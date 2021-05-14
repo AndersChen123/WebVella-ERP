@@ -17,6 +17,7 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 				.Include<DateTimeField, InputDateTimeField>()
 				.Include<EmailField, InputEmailField>()
 				.Include<FileField, InputFileField>()
+				.Include<GeographyField, InputGeographyField>()
 				.Include<GuidField, InputGuidField>()
 				.Include<HtmlField, InputHtmlField>()
 				.Include<ImageField, InputImageField>()
@@ -38,7 +39,8 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
                 .Include<InputDateTimeField, DateTimeField>()
                 .Include<InputEmailField, EmailField>()
                 .Include<InputFileField, FileField>()
-                .Include<InputGuidField, GuidField>()
+				.Include<InputGeographyField, GeographyField>()
+				.Include<InputGuidField, GuidField>()
                 .Include<InputHtmlField, HtmlField>()
                 .Include<InputImageField, ImageField>()
                 .Include<InputMultiLineTextField, MultiLineTextField>()
@@ -65,6 +67,7 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 				.Include<DateTimeField, DbDateTimeField>()
 				.Include<EmailField, DbEmailField>()
 				.Include<FileField, DbFileField>()
+				.Include<GeographyField, DbGeographyField>()
 				.Include<GuidField, DbGuidField>()
 				.Include<HtmlField, DbHtmlField>()
 				.Include<ImageField, DbImageField>()
@@ -77,6 +80,7 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 				.Include<SelectField, DbSelectField>()
 				.Include<TextField, DbTextField>()
 				.Include<UrlField, DbUrlField>();
+				
 
 			CreateMap<DbBaseField, Field>()
 				.Include<DbAutoNumberField, AutoNumberField>()
@@ -86,6 +90,7 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 				.Include<DbDateTimeField, DateTimeField>()
 				.Include<DbEmailField, EmailField>()
 				.Include<DbFileField, FileField>()
+				.Include<DbGeographyField, GeographyField>()
 				.Include<DbGuidField, GuidField>()
 				.Include<DbHtmlField, HtmlField>()
 				.Include<DbImageField, ImageField>()
@@ -133,6 +138,11 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 			CreateMap<InputFileField, FileField>();
 			CreateMap<FileField, DbFileField>();
 			CreateMap<DbFileField, FileField>();
+
+			CreateMap<GeographyField, InputGeographyField>();
+			CreateMap<InputGeographyField, GeographyField>();
+			CreateMap<GeographyField, DbGeographyField>();
+			CreateMap<DbGeographyField, GeographyField>();
 
 			CreateMap<GuidField, InputGuidField>();
 			CreateMap<InputGuidField, GuidField>();

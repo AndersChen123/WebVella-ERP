@@ -8,6 +8,7 @@ using WebVella.Erp.Api.Models;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 using Yahoo.Yui.Compressor;
 
 namespace WebVella.Erp.Web.TagHelpers
@@ -213,7 +214,7 @@ namespace WebVella.Erp.Web.TagHelpers
 
 			#region << Render >>
 			output.TagName = "div";
-			output.AddCssClass("erp-field form-group erp-filter");
+			output.AddCssClass("wv-field form-group erp-filter");
 			output.Attributes.Add("id", $"erp-filter-{FilterId}");
 			output.Attributes.Add("data-name", $"{Name}");
 			output.Attributes.Add("data-prefix", $"{Prefix}");

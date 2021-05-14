@@ -1,20 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using WebVella.Erp.Api.Models;
-using WebVella.Erp.Storage;
 using WebVella.Erp.Api.Models.AutoMapper;
 using WebVella.Erp.Database;
-using System.Net;
 
 namespace WebVella.Erp.Api
 {
-    public class EntityRelationManager
+	public class EntityRelationManager
     {
+		private DbContext suppliedContext = null;
+		private DbContext CurrentContext
+		{
+			get
+			{
+				if (suppliedContext != null)
+					return suppliedContext;
+				else
+					return DbContext.Current;
+			}
+		}
 
-        #region << Validation >>  
+		public EntityRelationManager(DbContext currentContext = null)
+		{
+			if (currentContext != null)
+				suppliedContext = currentContext;
+		}
 
-        private enum ValidationType
+		#region << Validation >>  
+
+		private enum ValidationType
         {
             Create, //indicates the relation will be created
             Update, //indicated the existing relation will be updated
@@ -24,7 +40,10 @@ namespace WebVella.Erp.Api
         private List<ErrorModel> ValidateRelation(EntityRelation relation, ValidationType validationType)
         {
             List<ErrorModel> errors = new List<ErrorModel>();
-			var entMan = new EntityManager();
+			   var entMan = new EntityManager();
+				//Postgres column name width limit
+				if(relation.Name.Length > 63)
+					errors.Add(new ErrorModel("name", relation.Name, "Relation name length exceeded. Should be up to 63 chars!"));
             if (validationType == ValidationType.Update)
             {
                 //we cannot update relation with missing Id (Guid.Empty means id is missing)
@@ -328,11 +347,11 @@ namespace WebVella.Erp.Api
 					return response;
 				}
 
-				relations = DbContext.Current.RelationRepository.Read().Select(x => x.MapTo<EntityRelation>()).ToList();
+				relations = CurrentContext.RelationRepository.Read().Select(x => x.MapTo<EntityRelation>()).ToList();
 
 				List<DbEntity> dbEntities = storageEntityList;
 				if(dbEntities == null) {
-					dbEntities = new DbEntityRepository().Read();
+					dbEntities = new DbEntityRepository(CurrentContext).Read();
 				}
 				foreach( EntityRelation relation in relations )
 				{
@@ -368,7 +387,12 @@ namespace WebVella.Erp.Api
 
         public EntityRelationResponse Create(EntityRelation relation)
         {
-            EntityRelationResponse response = new EntityRelationResponse();
+			if (!string.IsNullOrWhiteSpace(relation.Name))
+			{
+				relation.Name = relation.Name.Trim();
+			}
+
+			EntityRelationResponse response = new EntityRelationResponse();
             response.Timestamp = DateTime.UtcNow;
             response.Object = relation;
 
@@ -399,8 +423,8 @@ namespace WebVella.Erp.Api
 				if (storageRelation.Id == Guid.Empty)
                     storageRelation.Id = Guid.NewGuid();
 
-                var success = DbContext.Current.RelationRepository.Create(storageRelation);
-				Cache.ClearRelations();
+                var success = CurrentContext.RelationRepository.Create(storageRelation);
+				Cache.Clear();
                 if (success)
                 {
                     response.Success = true;
@@ -417,7 +441,7 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-				Cache.ClearRelations();
+				Cache.Clear();
                 response.Success = false;
                 response.Object = relation;
                 response.Timestamp = DateTime.UtcNow;
@@ -459,8 +483,8 @@ namespace WebVella.Erp.Api
             {
                 var storageRelation = relation.MapTo<DbEntityRelation>();
 				storageRelation.Name = storageRelation.Name.Trim();
-				var success = DbContext.Current.RelationRepository.Update(storageRelation);
-				Cache.ClearRelations();
+				var success = CurrentContext.RelationRepository.Update(storageRelation);
+				Cache.Clear();
                 if (success)
                 {
                     response.Success = true;
@@ -477,7 +501,7 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-                Cache.ClearRelations();
+                Cache.Clear();
 				response.Success = false;
                 response.Object = relation;
                 response.Timestamp = DateTime.UtcNow;
@@ -511,11 +535,11 @@ namespace WebVella.Erp.Api
 			try
 			{
 
-                var storageRelation = DbContext.Current.RelationRepository.Read(relationId);
-				Cache.ClearRelations();
+                var storageRelation = CurrentContext.RelationRepository.Read(relationId);
+				Cache.Clear();
                 if (storageRelation != null)
                 {
-					DbContext.Current.RelationRepository.Delete(relationId);
+					CurrentContext.RelationRepository.Delete(relationId);
                     response.Object = storageRelation.MapTo<EntityRelation>();
                     response.Success = true;
                     response.Message = "The entity relation was deleted!";
@@ -529,7 +553,7 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-				Cache.ClearRelations();
+				Cache.Clear();
 				
 				if (ErpSettings.DevelopmentMode)
 					response.Message = string.Format("Relation ID: {0}, /r/nMessage:{1}/r/nStackTrace:{2}", relationId, e.Message, e.StackTrace);
